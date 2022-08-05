@@ -19,9 +19,11 @@
 
 #define emod(a, b) (((a) % (b)) + (b)) % (b)
 
-//Screen dimension constants
 const int SCREEN_WIDTH = 1280;
 const int SCREEN_HEIGHT = 720;
+//TODO: make a camera that follows the player
+const int LEVEL_WIDTH = 5000;
+const int LEVEL_HEIGHT = 5000;
 const Uint32 ANT_ANIM_MS = 100;
 const Uint32 ANT_MS_TO_MOVE = 10;
 const int ANT_VEL_MAX = 2;
@@ -38,7 +40,7 @@ typedef struct {
 } Texture;
 
 //Ant struct hold information needed to draw any ant
-//Player and Npc strcut are used to calculate motion. There is a sort of 'inheritance' from Ant
+//Player and Npc structs are used to calculate motion. There is a sort of 'inheritance' from Ant
 
 typedef struct {
     int8_t frame;
@@ -77,15 +79,15 @@ Texture g_ant_texture;
 #define ANT_FRAMES_NUM 4
 SDL_Rect g_antframes[ANT_FRAMES_NUM];
 
-#define ANT_STACK_SIZE 100
-int g_ant_sp;
-Ant *g_ant_stack[ANT_STACK_SIZE];
+size_t g_ant_sp;
+Ant **g_ant_stack = NULL;
 //////////////// FUNCTIONS //////////////////////////////////////////////////////
 
 //push an ant onto ant stack
-void push_ant(Ant * ant);
+bool push_ant(Ant * ant);
 //get random int between from and to
 int randint(int from, int to);
+Ant **init_ant_stack(void);
 
 void init() {
 
@@ -108,6 +110,10 @@ void init() {
     int imgFlags = IMG_INIT_PNG;
     if(!( IMG_Init(imgFlags) & imgFlags)) {
         fprintf(stderr, "SDL_image could not initialize! SDL_image Error: %s\n", IMG_GetError());
+        exit(1);
+    }
+    if (init_ant_stack() == NULL) {
+        fprintf(stderr, "Error: Could not initialize ant stack!");
         exit(1);
     }
 }
@@ -166,19 +172,30 @@ void closesdl()
 
 Ant *create_ant(void) {
     Ant *ant = malloc(sizeof(Ant));
+    if (ant == NULL) {
+        return NULL;
+    }
     memset((void *) ant, 0, sizeof(Ant));
     ant->anim_time = SDL_GetTicks();
     ant->x = randint(0, SCREEN_WIDTH - g_ant_texture.width);
     ant->y = randint(0, SCREEN_HEIGHT - g_ant_texture.height);
     ant->scale = (double) rand() / RAND_MAX + 0.75; 
-    printf("Ant #%d created at x %d y %d\n", g_ant_sp, (int) ant->x, (int) ant->y);
+    printf("Ant #%ld created at x %d y %d\n", g_ant_sp, (int) ant->x, (int) ant->y);
     return ant;
 }
 
 Npc *create_npc(void) {
     Npc *npc = malloc(sizeof(Npc));
+    if (npc == NULL) return NULL;
     npc->ant = create_ant();
-    push_ant(npc->ant);
+    if (npc->ant == NULL) {
+        free(npc);
+        fprintf(stderr, "Warning: Could not allocate memory for an npc ant");
+    }
+    if (!push_ant(npc->ant)) {
+        fprintf(stderr, "WARNING: could not push ant. Leaked memory\n");
+        exit(123);
+    }
     npc->state = ANT_STATE_PREPARE;
 
     return npc;
@@ -216,7 +233,6 @@ Uint32 move_player(Uint32 interval, void *player_void) {
     if (player->vel != 0) {
         dx = cosf((player->ant->angle + 90) * M_PI / 180.0);
         dy = sinf((player->ant->angle + 90) * M_PI / 180.0);
-        printf("%d degrees\tdx: %lf\tdy: %lf\n", player->ant->angle, dx, dy);
         player->ant->x += player->vel * dx;
         player->ant->y += player->vel * dy;
         if (player->ant->x < 0 || player->ant->x + player->width > SCREEN_WIDTH) {
@@ -241,8 +257,6 @@ Uint32 move_npc(Uint32 interval, void *npc_void) {
             npc->target_angle = emod(npc->ant->angle + target_rotation * npc->cw, 360);
             npc->steps_done = 0;
             npc->state = ANT_STATE_TURN;
-            printf("chosen angle: %d + %d * %d\n", npc->ant->angle, target_rotation, npc->cw);
-            printf("chosen angle: %d\tcw: %d\n", npc->target_angle, npc->cw);
             break;
         case ANT_STATE_TURN:
             
@@ -251,7 +265,6 @@ Uint32 move_npc(Uint32 interval, void *npc_void) {
             }
             else
                 npc->state = ANT_STATE_STEP;
-            printf("cur angle: %d\ttarget: %d\n", npc->ant->angle, npc->target_angle);
             break;
         case ANT_STATE_STEP:
             if (npc->steps_done < ANT_STEP_LEN) {
@@ -262,7 +275,6 @@ Uint32 move_npc(Uint32 interval, void *npc_void) {
             }
             else
                 npc->state = ANT_STATE_PREPARE;
-            printf("cur steps: %d/%d\n", npc->steps_done, ANT_STEP_LEN);
             break;
     }
 
@@ -285,7 +297,14 @@ int main(void)
 
     Player player = {0};
     player.ant = create_ant();
-    push_ant(player.ant);
+    if (player.ant == NULL) {
+        fprintf(stderr, "Error: could not allocate memory for player ant\n");
+        exit(1);
+    }
+    if (!push_ant(player.ant)) {
+        fprintf(stderr, "Error: could not push player ant\n");
+        exit(1);
+    }
     player.ant->x = 300;
     player.ant->y = 300;
     player.width = g_ant_texture.width / ANT_FRAMES_NUM;
@@ -300,6 +319,10 @@ int main(void)
         while(SDL_PollEvent(&event) != 0) {
             if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_LCTRL) {
                 Npc *npc = create_npc();
+                if (npc == NULL) {
+                    fprintf(stderr, "Warning: could not allocate memory for an npc");
+                    continue;
+                }
                 SDL_AddTimer(ANT_MS_TO_MOVE, move_npc, (void *) npc);
             }
             if (event.type == SDL_KEYDOWN && event.key.repeat == 0) {
@@ -342,7 +365,7 @@ int main(void)
 
         //Clear screen
         SDL_RenderClear(g_renderer);
-        for (int i = 0; i < g_ant_sp; i++) {
+        for (size_t i = 0; i < g_ant_sp; i++) {
             render_ant_anim(g_ant_stack[i]);
         }
         //Update screen
@@ -355,12 +378,27 @@ int main(void)
 	return 0;
 }
 
+#define ANT_STACK_INIT_SIZE 10
+Ant ** init_ant_stack(void) {
+    return g_ant_stack = malloc(ANT_STACK_INIT_SIZE * sizeof(Ant *));
+}
+
 //TODO:make this stack dynamically growing
 //Until then it leaks memory by creating pointers outside of the stack
-void push_ant(Ant *ant) {
-    if (g_ant_sp < ANT_STACK_SIZE) {
+bool push_ant(Ant *ant) {
+    static size_t stack_size = ANT_STACK_INIT_SIZE;
+    if (g_ant_sp < stack_size) {
         g_ant_stack[g_ant_sp++] = ant;
     }
+    else {
+        if ((g_ant_stack = realloc((void *) g_ant_stack, stack_size * 2 * sizeof(Ant *))) == NULL) {
+            return false;
+        }
+        stack_size += 2;
+        g_ant_stack[g_ant_sp++] = ant;
+
+    }
+    return true;
 }
 
 int randint(int from, int to) {
