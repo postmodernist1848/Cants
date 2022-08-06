@@ -132,7 +132,7 @@ char *slurp_file(const char *, size_t *size);
 void init() {
 
 	//Initialize SDL
-	scc(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER), "Could not initialize SDL");
+	scc(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_RENDERER_PRESENTVSYNC), "Could not initialize SDL");
     if( !SDL_SetHint( SDL_HINT_RENDER_SCALE_QUALITY, "1" ) ) {
         printf( "Warning: Linear texture filtering not enabled!" );
     }
@@ -226,6 +226,18 @@ Ant *create_ant(int x, int y) {
     return ant;
 }
 
+void render_player_anim(Player *player) {
+    if (SDL_GetTicks() - player->ant->anim_time > ANT_ANIM_MS && (player->vel != 0 || player->turn_vel != 0)) {
+        player->ant->anim_time = SDL_GetTicks();
+        player->ant->frame = (player->ant->frame + 1) % ANT_FRAMES_NUM;
+    }
+    SDL_Rect render_rect;
+    render_rect.x = player->ant->x - g_camera.x - (float) g_ant_texture.width / ANT_FRAMES_NUM / 2;
+    render_rect.y = player->ant->y - g_camera.y - (float) g_ant_texture.height / 2;
+    render_rect.h = g_antframes[0].h * player->ant->scale;
+    render_rect.w = g_antframes[0].w * player->ant->scale;
+    SDL_RenderCopyEx(g_renderer, g_ant_texture.texture_proper, &g_antframes[player->ant->frame], &render_rect, player->ant->angle, NULL, SDL_FLIP_NONE);
+}
 
 void render_ant_anim(Ant *ant) {
     if (SDL_GetTicks() - ant->anim_time > ANT_ANIM_MS) {
@@ -285,11 +297,12 @@ Uint32 move_player(Uint32 interval, void *player_void) {
         dy = sinf((player->ant->angle + 90) * M_PI / 180.0);
         player->ant->x += player->vel * dx;
         player->ant->y += player->vel * dy;
-        if (player->ant->x < 0 || player->ant->x + player->width > LEVEL_WIDTH) {
-            player->ant->x -= player->vel;
-        }
-        if (player->ant->y < 0 || player->ant->y + player->height > LEVEL_HEIGHT) {
-            player->ant->y -= player->vel;
+        //collision checks
+        //TODO: accessing the map with the player outside of the map may segfault
+        //Circular collision might be worth it
+        if (g_map.matrix[(int) player->ant->y / CELL_SIZE][(int) player->ant->x / CELL_SIZE] != 0) {
+            player->ant->x -= player->vel * dx;
+            player->ant->y -= player->vel * dy;
         }
     }
     set_camera(player);
@@ -474,10 +487,6 @@ int main(int argc, char **argv)
         fprintf(stderr, "Error: could not allocate memory for player ant\n");
         exit(1);
     }
-    if (!push_ant(player.ant)) {
-        fprintf(stderr, "Error: could not push player ant\n");
-        exit(1);
-    }
     player.width = g_ant_texture.width / ANT_FRAMES_NUM;
     player.height = g_ant_texture.height;
     set_camera(&player);
@@ -550,6 +559,9 @@ int main(int argc, char **argv)
                 }
             }
         }
+
+        render_player_anim(&player);
+
         //render ants which are on the screen
         for (size_t i = 0; i < g_ant_sp; i++) {
             SDL_Rect coords = {
