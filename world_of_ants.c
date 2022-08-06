@@ -1,5 +1,6 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
+#include <SDL2/SDL_ttf.h>
 #include <stdio.h>
 #include <stdbool.h>
 #include <assert.h>
@@ -18,6 +19,11 @@
     }                                                                         \
 }
 
+#define imgcp(pointer, message) { if (pointer == NULL) {fprintf(stderr, "Error: %s! TTF_Error: %s", message, TTF_GetError()); exit(1);}}
+#define imgcc(code, message) { if (code < 0) {fprintf(stderr, "Error: %s! TTF_Error: %s", message, TTF_GetError()); exit(1);}}
+#define ttfcp(pointer, message) { if (pointer == NULL) {fprintf(stderr, "Error: %s! TTF_Error: %s", message, TTF_GetError()); exit(1);}}
+#define ttfcc(code, message) { if (code < 0) {fprintf(stderr, "Error: %s! TTF_Error: %s", message, TTF_GetError()); exit(1);}}
+
 #define emod(a, b) (((a) % (b)) + (b)) % (b)
 
 const int SCREEN_WIDTH = 1920;
@@ -30,9 +36,10 @@ const int ANT_VEL_MAX = 2;
 const int ANT_TURN_DEGREES = 1;
 const int CELL_SIZE = 50;
 const int ANT_STEP_LEN = CELL_SIZE;
-//with a 3000x3000 world and 50x50 walls there are 60 walls in a map
+const int UNIVERSAL_FOOD_COUNT = 40;
 
 enum ANT_STATES {ANT_STATE_PREPARE, ANT_STATE_TURN, ANT_STATE_STEP};
+enum MAP {MAP_FREE, MAP_WALL, MAP_FOOD};
 //Texture - an SDL_Texture with additional information
 typedef struct {
     SDL_Texture *texture_proper;
@@ -68,6 +75,7 @@ typedef struct {
     int turn_vel;
     int width;
     int height;
+    int food_count;
 } Player;
 
 typedef struct {
@@ -77,20 +85,27 @@ typedef struct {
 } Map;
 
 typedef struct {
-    int8_t x;
-    int8_t y;
+    short x;
+    short y;
 } Point;
 
 //////////////// GLOBALS ////////////////////////////////////////////////////////
 
 //The window we'll be rendering to
-SDL_Window* g_window = NULL;
+SDL_Window* g_window;
 //The window renderer
-SDL_Renderer* g_renderer = NULL;
+SDL_Renderer* g_renderer;
 
+Uint32 g_eventstart;
+
+Texture g_leaf_texture;
 Texture g_background_texture;
 Texture g_ant_texture;
+Texture g_food_count_texture;
+Texture g_anthill_texture;
+TTF_Font *g_font;
 
+int g_world_food_count;
 //Ant frames clip rects
 #define ANT_FRAMES_NUM 4
 SDL_Rect g_antframes[ANT_FRAMES_NUM];
@@ -134,8 +149,9 @@ void init() {
 	//Initialize SDL
 	scc(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_RENDERER_PRESENTVSYNC), "Could not initialize SDL");
     if( !SDL_SetHint( SDL_HINT_RENDER_SCALE_QUALITY, "1" ) ) {
-        printf( "Warning: Linear texture filtering not enabled!" );
+        fprintf(stderr, "Warning: Linear texture filtering not enabled!");
     }
+    ttfcc(TTF_Init() < 0, "Could not initialize SDL_ttf");
 
     //Create window
     scp((g_window = SDL_CreateWindow("Can'ts", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN)),
@@ -143,8 +159,6 @@ void init() {
     //Create renderer for window
     scp((g_renderer = SDL_CreateRenderer(g_window, -1, SDL_RENDERER_ACCELERATED)),
             "Could not create renderer");
-    //Initialize renderer color
-    SDL_SetRenderDrawColor(g_renderer, 0x00, 0x90, 0x00, 0xFF);
 
     //Initialize PNG loading
     int imgFlags = IMG_INIT_PNG;
@@ -152,6 +166,7 @@ void init() {
         fprintf(stderr, "SDL_image could not initialize! SDL_image Error: %s\n", IMG_GetError());
         exit(1);
     }
+    //init stack with ant pointers
     if (init_ant_stack() == NULL) {
         fprintf(stderr, "Error: Could not initialize ant stack!");
         exit(1);
@@ -159,7 +174,7 @@ void init() {
 }
 
 //return Texture struct
-Texture loadTexture(const char *path)
+Texture load_texture(const char *path)
 {
 	//The final texture
 	SDL_Texture *new_texture = NULL;
@@ -167,7 +182,7 @@ Texture loadTexture(const char *path)
     Texture texture_struct = {0};
 
 	//Load image at specified path
-	scp((loaded_surface = IMG_Load(path)), "Could not load image");
+	imgcp((loaded_surface = IMG_Load(path)), "Could not load image");
     //Create texture from surface pixels
     scp((new_texture = SDL_CreateTextureFromSurface(g_renderer, loaded_surface)), "Could not create texture from surface");
 
@@ -181,18 +196,45 @@ Texture loadTexture(const char *path)
 	return texture_struct;
 }
 
+//return Texture struct
+Texture load_text_texture(const char *text)
+{
+	//The final texture
+	SDL_Texture *new_texture = NULL;
+    SDL_Surface *text_surface = NULL;
+    Texture texture_struct = {0};
 
-void loadMedia() {
+	//Load image at specified path
+    SDL_Color color = {0xFF, 0xFF, 0xFF, 0xFF};
+	ttfcp((text_surface = TTF_RenderText_Solid(g_font, text, color)), "Could not load text surface");
+    //Create texture from surface pixels
+    scp((new_texture = SDL_CreateTextureFromSurface(g_renderer, text_surface)), "Could not create texture from surface");
+
+    texture_struct.texture_proper = new_texture;
+    texture_struct.width = text_surface->w;
+    texture_struct.height = text_surface->h;
+
+    //Get rid of old loaded surface
+    SDL_FreeSurface(text_surface);
+
+	return texture_struct;
+}
+
+void load_media() {
 	//Load PNG texture
-    g_ant_texture = loadTexture("images/antspritesheet.png");
+    g_ant_texture = load_texture("assets/antspritesheet.png");
     for (int i = 0; i < ANT_FRAMES_NUM; i++) {
         g_antframes[i].x = g_ant_texture.width * i / ANT_FRAMES_NUM;
         g_antframes[i].y = 0;
         g_antframes[i].h = g_ant_texture.height;
         g_antframes[i].w = g_ant_texture.width / ANT_FRAMES_NUM;
     }
-    g_background_texture = loadTexture("images/grass500x500.png");
+    g_background_texture = load_texture("assets/grass500x500.png");
     //<a href="https://www.freepik.com/vectors/cartoon-grass">Cartoon grass vector created by babysofja - www.freepik.com</a>
+    g_leaf_texture = load_texture("assets/leaf.png");
+    g_font = TTF_OpenFont("assets/OpenSans-Regular.ttf", 50);
+    g_food_count_texture = load_text_texture("0");
+    g_anthill_texture = load_texture("assets/anthill.png");
 }
 
 void closesdl()
@@ -200,6 +242,14 @@ void closesdl()
 	//Free loaded image
 	SDL_DestroyTexture(g_ant_texture.texture_proper);
     g_ant_texture.texture_proper = NULL;
+    SDL_DestroyTexture(g_background_texture.texture_proper);
+    g_background_texture.texture_proper = NULL;
+    SDL_DestroyTexture(g_leaf_texture.texture_proper);
+    g_background_texture.texture_proper = NULL;
+    SDL_DestroyTexture(g_food_count_texture.texture_proper);
+    g_background_texture.texture_proper = NULL;
+    SDL_DestroyTexture(g_anthill_texture.texture_proper);
+    g_background_texture.texture_proper = NULL;
 
 	//Destroy window	
 	SDL_DestroyRenderer(g_renderer);
@@ -207,8 +257,10 @@ void closesdl()
 	g_window = NULL;
 	g_renderer = NULL;
 
+    TTF_CloseFont(g_font);
 	//Quit SDL subsystems
 	IMG_Quit();
+    TTF_Quit();
 	SDL_Quit();
 }
 
@@ -282,6 +334,17 @@ void set_camera(Player *player)
     }
 }
 
+void remove_food(int8_t *cell) {
+    *cell = MAP_FREE;
+    //currently, there is only one user even, so no data here
+    SDL_Event event;
+    SDL_UserEvent userevent;
+    event.type = SDL_USEREVENT;
+    userevent.type = g_eventstart;
+    event.user = userevent;
+    SDL_PushEvent(&event);
+}
+
 Uint32 move_player(Uint32 interval, void *player_void) {
     //TODO: figure out whether the compiler optimizes out multiplication by 0
     Player *player = (Player *) player_void;
@@ -300,9 +363,16 @@ Uint32 move_player(Uint32 interval, void *player_void) {
         //collision checks
         //TODO: accessing the map with the player outside of the map may segfault
         //Circular collision might be worth it
-        if (g_map.matrix[(int) player->ant->y / CELL_SIZE][(int) player->ant->x / CELL_SIZE] != 0) {
-            player->ant->x -= player->vel * dx;
-            player->ant->y -= player->vel * dy;
+        int8_t *cell = &g_map.matrix[(int) player->ant->y / CELL_SIZE][(int) player->ant->x / CELL_SIZE];
+        switch (*cell) {
+            case MAP_WALL:
+                player->ant->x -= player->vel * dx;
+                player->ant->y -= player->vel * dy;
+                break;
+            case MAP_FOOD:
+            player->food_count++;
+            remove_food(cell);
+                break;
         }
     }
     set_camera(player);
@@ -316,7 +386,6 @@ Uint32 move_npc(Uint32 interval, void *npc_void) {
     Npc *npc = (Npc *) npc_void;
     switch (npc->state) {
         case ANT_STATE_PREPARE:
-            printf("preparing ant at x %.f y %.f gm_x %d gm_y %d\n", npc->ant->x, npc->ant->y, npc->gm_x, npc->gm_y);
             target_rotation = randint(0, 4) * 45;
             npc->cw = randint(0, 1) * 2 - 1;
             npc->target_angle = emod(npc->ant->angle + target_rotation * npc->cw, 360);
@@ -325,11 +394,10 @@ Uint32 move_npc(Uint32 interval, void *npc_void) {
             int gm_x_next = npc->gm_x + g_ant_move_table[npc->target_angle / 45].x;
             int gm_y_next = npc->gm_y + g_ant_move_table[npc->target_angle / 45].y; 
             //TODO: fix - may segfault on boundary of the map
-            if (g_map.matrix[gm_y_next][gm_x_next] == 0) {
+            if (g_map.matrix[gm_y_next][gm_x_next] != MAP_WALL) {
                 npc->gm_x = gm_x_next;
                 npc->gm_y = gm_y_next;
                 npc->state = ANT_STATE_TURN;
-                printf("Next step is %d:%d", gm_y_next, gm_x_next);
             }
             break;
 
@@ -356,8 +424,13 @@ Uint32 move_npc(Uint32 interval, void *npc_void) {
             }
             else {
                 //correction
+
                 npc->ant->x = npc->gm_x * CELL_SIZE + (float) CELL_SIZE / 2;
                 npc->ant->y = npc->gm_y * CELL_SIZE + (float) CELL_SIZE / 2;
+                int8_t *cell = &g_map.matrix[(int) npc->ant->y / CELL_SIZE][(int) npc->ant->x / CELL_SIZE];
+                if (*cell == MAP_FOOD) {
+                    remove_food(cell);
+                }
                 npc->state = ANT_STATE_PREPARE;
             }
             break;
@@ -454,10 +527,67 @@ bool load_map(char *path) {
     free(map_str);
     return true;
 }
+
+Point find_random_free_spot_on_a_map() {
+    short x, y;
+    while (g_map.matrix[y = rand() % g_map.height][x = rand() % g_map.width] != MAP_FREE);
+    Point point = {x, y};
+    return point;
+}
+
+//not the most efficient way, but allows to check if there are free points at all
+//TODO: index all free spaces and make this function extra fast and safe
+Point find_random_free_spot_on_a_map_safe() {
+    Point free_points[g_map.height * g_map.width];
+    int sp = 0;
+    Point point;
+    for (int i = 0; i < g_map.height; i++) {
+        for (int j = 0; j < g_map.width; j++) {
+            if (g_map.matrix[i][j] == MAP_FREE) {
+                point.y = i;
+                point.x = j;
+                free_points[sp++] = point;
+            }
+        }
+    }
+    assert(sp > 0);
+    return free_points[rand() % sp];
+}
+
+//TODO:create food outside the camera only
+void create_food(void) {
+    Point point = find_random_free_spot_on_a_map();
+    g_map.matrix[point.y][point.x] = MAP_FOOD;
+    g_world_food_count++;
+}
+
+void update_food_count_texture(int food_count) {
+    char str[11];
+    sprintf(str, "%d", food_count);
+    SDL_DestroyTexture(g_food_count_texture.texture_proper);
+    g_food_count_texture = load_text_texture(str);
+}
+
+//TODO: maybe add another type MAP_ANTHILL
+//coordinates of the entrance (where the ants spawn)
+void place_anthill(int gm_x, int gm_y) {
+    g_map.matrix[gm_y][gm_x - 1] = MAP_WALL;
+    g_map.matrix[gm_y][gm_x] = MAP_WALL;
+    g_map.matrix[gm_y][gm_x + 1] = MAP_WALL;
+
+    g_map.matrix[gm_y + 1][gm_x - 1] = MAP_WALL;
+    g_map.matrix[gm_y + 1][gm_x] = MAP_WALL;
+    g_map.matrix[gm_y + 1][gm_x + 1] = MAP_WALL;
+
+    g_map.matrix[gm_y + 2][gm_x - 1] = MAP_WALL;
+    g_map.matrix[gm_y + 2][gm_x] = MAP_WALL;
+    g_map.matrix[gm_y + 2][gm_x + 1] = MAP_WALL;
+}
+
 //////////////// MAIN ///////////////////////////////////////////////////////////
 
-int main(int argc, char **argv)
-{
+//TODO: tutorial
+int main(int argc, char **argv) {
 
     char *map_path;
     if (argc > 1)
@@ -471,12 +601,18 @@ int main(int argc, char **argv)
     else
         printf("Map %dx%d loaded successfully!\n", g_map.width, g_map.height);
 
+    int anthill_x = LEVEL_WIDTH / 2 - CELL_SIZE * 1, anthill_y = LEVEL_HEIGHT / 2;
+    //pos of the entrance
+    int anthill_gm_x = anthill_x / CELL_SIZE + 1, anthill_gm_y = anthill_y / CELL_SIZE;
+    place_anthill(anthill_gm_x, anthill_gm_y);
 	//Start up SDL and create window
     init();
     //load needed media
-    loadMedia();
+    load_media();
     //Main loop flag
     bool quit = false;
+
+    g_eventstart = SDL_RegisterEvents(1);
 
     //Event handler
     SDL_Event event;
@@ -491,6 +627,10 @@ int main(int argc, char **argv)
     player.height = g_ant_texture.height;
     set_camera(&player);
 
+    while(g_world_food_count < UNIVERSAL_FOOD_COUNT) {
+        create_food();
+    }
+
     //call move_player each ANT_MS_TO_MOVE sec
     SDL_AddTimer(ANT_MS_TO_MOVE, move_player, (void *) &player);
 
@@ -498,51 +638,61 @@ int main(int argc, char **argv)
     while(!quit) {
         //Handle events on queue
         while(SDL_PollEvent(&event) != 0) {
-            if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_LCTRL) {
-                Npc *npc = create_npc(LEVEL_WIDTH / 2 / CELL_SIZE, LEVEL_HEIGHT / 2 / CELL_SIZE);
-                if (npc == NULL) {
-                    fprintf(stderr, "Warning: could not allocate memory for an npc");
-                    continue;
-                }
-            }
-            if (event.type == SDL_KEYDOWN && event.key.repeat == 0) {
+            switch (event.type) {
+                case SDL_KEYDOWN:
                 switch (event.key.keysym.sym) {
-                    case SDLK_w: 
-                        player.vel -= ANT_VEL_MAX;
+                    case SDLK_LCTRL:
+                        if (create_npc(anthill_gm_x, anthill_gm_y) == NULL) {
+                            fprintf(stderr, "Warning: could not allocate memory for an npc");
+                            continue;
+                        }
                         break;
-                    case SDLK_s: 
-                        player.vel += ANT_VEL_MAX;
-                        break;
-                    case SDLK_a: 
-                        player.turn_vel -= ANT_TURN_DEGREES;
-                        break;
-                    case SDLK_d: 
-                        player.turn_vel += ANT_TURN_DEGREES;
-                        break;
-                }
-            }
-            if (event.type == SDL_KEYUP && event.key.repeat == 0) {
-                switch (event.key.keysym.sym) {
-                    case SDLK_w: 
-                        player.vel += ANT_VEL_MAX;
-                        break;
-                    case SDLK_s: 
-                        player.vel -= ANT_VEL_MAX;
-                        break;
-                    case SDLK_a: 
-                        player.turn_vel += ANT_TURN_DEGREES;
-                        break;
-                    case SDLK_d: 
-                        player.turn_vel -= ANT_TURN_DEGREES;
-                        break;
-                }
-            }
-            //User requests quit
-            if(event.type == SDL_QUIT) {
-                quit = true;
+                    }
+                    if (event.key.repeat == 0)
+                        switch (event.key.keysym.sym) {
+                            case SDLK_w: 
+                                player.vel -= ANT_VEL_MAX;
+                                break;
+                            case SDLK_s: 
+                                player.vel += ANT_VEL_MAX / 2;
+                                break;
+                            case SDLK_a: 
+                                player.turn_vel -= ANT_TURN_DEGREES;
+                                break;
+                            case SDLK_d: 
+                                player.turn_vel += ANT_TURN_DEGREES;
+                                break;
+
+                    }
+                    break;
+                case SDL_KEYUP:
+                    switch (event.key.keysym.sym) {
+                        case SDLK_w: 
+                            player.vel += ANT_VEL_MAX;
+                            break;
+                        case SDLK_s: 
+                            player.vel -= ANT_VEL_MAX / 2;
+                            break;
+                        case SDLK_a: 
+                            player.turn_vel += ANT_TURN_DEGREES;
+                            break;
+                        case SDLK_d: 
+                            player.turn_vel -= ANT_TURN_DEGREES;
+                            break;
+                    }
+                    break;
+                case SDL_QUIT:
+                    quit = true;
+                    break;
+                case SDL_USEREVENT:
+                    //food_update
+                    update_food_count_texture(player.food_count);
+                    create_food();
+                    break;
             }
         }
         //Clear screen
+        SDL_SetRenderDrawColor(g_renderer, 0x00, 0x90, 0x00, 0xFF);
         SDL_RenderClear(g_renderer);
 
         //render background texture tiles (only those that are on the screen)
@@ -578,20 +728,29 @@ int main(int argc, char **argv)
         //only iterate over walls that are on the screen
         for (int i = g_camera.y / CELL_SIZE; i < (g_camera.y + g_camera.h + CELL_SIZE) / CELL_SIZE && i < g_map.height; i++) {
             for (int j = g_camera.x / CELL_SIZE; j < (g_camera.x + g_camera.w + CELL_SIZE) / CELL_SIZE && i < g_map.width; j++) {
-                if (g_map.matrix[i][j]) {
+                if (g_map.matrix[i][j] == MAP_WALL) {
                     SDL_Rect coords = {
-                        j * CELL_SIZE,
-                        i * CELL_SIZE,
+                        j * CELL_SIZE - g_camera.x,
+                        i * CELL_SIZE - g_camera.y,
                         CELL_SIZE,
                         CELL_SIZE
                     };
                     //TODO: compare SDL_RenderFillRect and SDL_FillRect speed
-                    coords.x -= g_camera.x;
-                    coords.y -= g_camera.y;
                     SDL_RenderFillRect(g_renderer, &coords);
+                }
+                else if (g_map.matrix[i][j] == MAP_FOOD) {
+                    render_texture(g_leaf_texture, j * CELL_SIZE - g_camera.x, i * CELL_SIZE - g_camera.y);
                 }
             }
         }
+        render_texture(g_anthill_texture, anthill_x - g_camera.x, anthill_y - g_camera.y);
+
+        //draw HUD
+        SDL_SetRenderDrawColor(g_renderer, 0x50, 0x50, 0x50, 0xFF);
+        SDL_Rect hud = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT / 10};
+        SDL_RenderFillRect(g_renderer, &hud);
+        render_texture(g_leaf_texture, SCREEN_WIDTH / 20, SCREEN_HEIGHT / 40);
+        render_texture(g_food_count_texture, SCREEN_WIDTH / 10, SCREEN_HEIGHT / 100);
 
         //Update screen
         SDL_RenderPresent(g_renderer);

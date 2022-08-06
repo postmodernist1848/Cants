@@ -1,6 +1,6 @@
 CC=clang
 CFLAGS=-Wall -Wextra -g3
-LIBS=-lSDL2 -lSDL2_image -lm
+LIBS=-lSDL2 -lSDL2_image -lSDL2_ttf -lm
 
 .PHONY: clean
 
