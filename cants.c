@@ -30,8 +30,8 @@
 
 #define emod(a, b) (((a) % (b)) + (b)) % (b)
 
-int screen_width = 1280;
-int screen_height = 720;
+int screen_width = 1920;
+int screen_height = 1080;
 const int LEVEL_WIDTH = 3000;
 const int LEVEL_HEIGHT = 3000;
 const Uint32 ANT_ANIM_MS = 100;
@@ -221,36 +221,38 @@ Texture load_texture(const char *path)
 }
 
 //return Texture struct
-Texture load_text_texture(const char *text)
-{
+Texture load_text_texture(const char *text){
 	//The final texture
 	SDL_Texture *new_texture = NULL;
     SDL_Surface *text_surface = NULL;
-    Texture texture_struct = {0};
+
 
 #define OUTLINE_SIZE 2
 
-    /* load font and its outline */ 
-    TTF_SetFontOutline(g_font, OUTLINE_SIZE); 
+    /* load font and its outline */
+    TTF_SetFontOutline(g_font, OUTLINE_SIZE);
 
-    /* render text and text outline */ 
-    SDL_Color white = {0xFF, 0xFF, 0xFF, 0xFF}; 
-    SDL_Color black = {0x00, 0x00, 0x00, 0xFF}; 
-    text_surface = TTF_RenderText_Blended(g_font, text, black); 
-    SDL_Surface *fg_surface = TTF_RenderText_Blended(g_font, text, white); 
-    SDL_Rect rect = {OUTLINE_SIZE, OUTLINE_SIZE, fg_surface->w, fg_surface->h}; 
+    /* render text and text outline */
+    SDL_Color white = {0xFF, 0xFF, 0xFF, 0xFF};
+    SDL_Color black = {0x00, 0x00, 0x00, 0xFF};
+    text_surface = TTF_RenderText_Blended(g_font, text, black);
+    SDL_Surface *fg_surface = TTF_RenderText_Blended(g_font, text, white);
+    SDL_Rect rect = {OUTLINE_SIZE, OUTLINE_SIZE, fg_surface->w, fg_surface->h};
 
-    /* blit text onto its outline */ 
-    SDL_SetSurfaceBlendMode(fg_surface, SDL_BLENDMODE_BLEND); 
-    SDL_BlitSurface(fg_surface, NULL, text_surface, &rect); 
-    SDL_FreeSurface(fg_surface); 
+    /* blit text onto its outline */
+    SDL_SetSurfaceBlendMode(fg_surface, SDL_BLENDMODE_BLEND);
+    SDL_BlitSurface(fg_surface, NULL, text_surface, &rect);
+    SDL_FreeSurface(fg_surface);
 
     scp((new_texture = SDL_CreateTextureFromSurface(g_renderer, text_surface)), "Could not create texture from surface");
 
+    const Texture texture_struct = {
+        new_texture,
+        text_surface->w,
+        text_surface->h
+
+    };
     SDL_FreeSurface(text_surface);
-    texture_struct.texture_proper = new_texture;
-    texture_struct.width = text_surface->w;
-    texture_struct.height = text_surface->h;
 
 	return texture_struct;
 }
@@ -313,7 +315,7 @@ Ant *create_ant(int x, int y) {
     ant->anim_time = SDL_GetTicks();
     ant->x = x; //randint(g_camera.x, g_camera.x + screen_width - g_ant_texture.width / ANT_FRAMES_NUM);
     ant->y = y; //randint(g_camera.y, g_camera.y + screen_height - g_ant_texture.height);
-    ant->scale = (double) rand() / RAND_MAX + 0.75; 
+    ant->scale = (double) rand() / RAND_MAX + 0.75;
 #if DEBUGMODE
     printf("Ant #%ld created at x %d y %d\n", g_ant_sp, (int) ant->x, (int) ant->y);
 #endif
@@ -362,7 +364,7 @@ void set_camera(Player *player)
     g_camera.y = ((int) player->ant->y + g_ant_texture.height / 2) - screen_height / 2;
 
     //Keep the camera in bounds
-    if(g_camera.x < 0) { 
+    if(g_camera.x < 0) {
         g_camera.x = 0;
     }
     if(g_camera.y < 0) {
@@ -429,7 +431,6 @@ Uint32 move_player(Uint32 interval, void *player_void) {
 void update_food_count_texture(int food_count, int next_level) {
     char str[22];
     sprintf(str, "%d/%d", food_count, next_level);
-    //TODO:check if map has enough free space for the game
     SDL_DestroyTexture(g_food_count_texture.texture_proper);
     g_food_count_texture = load_text_texture(str);
 }
@@ -453,7 +454,7 @@ Uint32 move_npc(Uint32 interval, void *npc_void) {
             npc->steps_done = 0;
             //next game cell
             int gm_x_next = npc->gm_x + g_ant_move_table[npc->target_angle / 45].x;
-            int gm_y_next = npc->gm_y + g_ant_move_table[npc->target_angle / 45].y; 
+            int gm_y_next = npc->gm_y + g_ant_move_table[npc->target_angle / 45].y;
             //TODO: fix - may segfault on boundary of the map
             if (g_map.matrix[gm_y_next][gm_x_next] != MAP_WALL && g_map.matrix[gm_y_next][gm_x_next] != MAP_ANTHILL) {
                 npc->gm_x = gm_x_next;
@@ -463,7 +464,7 @@ Uint32 move_npc(Uint32 interval, void *npc_void) {
             break;
 
         case ANT_STATE_TURN:
-            
+
             if (emod(npc->ant->angle, 360) != npc->target_angle) {
                 npc->ant->angle = emod(npc->ant->angle + 5 * npc->cw, 360);
             }
@@ -585,7 +586,7 @@ bool load_map(char *path) {
     assert(cur_line == num_lines);
     g_map.width = line_len_in_tokens;
     g_map.height = num_lines;
-    
+
     free(map_str);
     return true;
 }
@@ -714,7 +715,7 @@ void render_game_objects(Player *player, Anthill *anthill) {
         SDL_Rect hud = {0, screen_height * 14 / 15, screen_width, screen_height / 15};
         SDL_RenderFillRect(g_renderer, &hud);
         SDL_SetRenderDrawColor(g_renderer, 0x90, 0xCC, 0x90, 0xFF);
-        SDL_Rect space_for_hud1 = {screen_width / 20, screen_height * 44 / 45 - g_food_count_texture.height / 2, 
+        SDL_Rect space_for_hud1 = {screen_width / 20, screen_height * 44 / 45 - g_food_count_texture.height / 2,
             screen_width * 19/ 20, g_leaf_texture.height};
         SDL_RenderFillRect(g_renderer, &space_for_hud1);
         render_texture(g_leaf_texture, screen_width / 20, screen_height * 34 / 35 - g_leaf_texture.height / 2);
@@ -725,10 +726,17 @@ void render_game_objects(Player *player, Anthill *anthill) {
 
 }
 
+void toggle_fullscreen(void) {
+    Uint32 FullscreenFlag = SDL_WINDOW_FULLSCREEN;
+    bool IsFullscreen = SDL_GetWindowFlags(g_window) & FullscreenFlag;
+    SDL_SetWindowFullscreen(g_window, IsFullscreen ? 0 : FullscreenFlag);
+    SDL_ShowCursor(IsFullscreen);
+}
+
 //////////////// MAIN ///////////////////////////////////////////////////////////
 
 //TODO: tutorial
-//better player anchor when determing collision 
+//better player anchor when determing collision
 //make npcs prioretise MAP_FOOD tiles
 //show entire map after you win (don't turn off rendering)
 
@@ -750,6 +758,7 @@ int main(int argc, char *argv[]) {
     init_anthill(&anthill);
 	//Start up SDL and create window
     init();
+    SDL_GetWindowSize(g_window, &screen_width, &screen_height);
     //load needed media
     load_media();
     //Main loop flag
@@ -766,7 +775,7 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Error: could not allocate memory for player ant\n");
         exit(1);
     }
-    printf("scale :%f\n", player.ant->scale);
+
     player.ant->scale=1.59;
     player.width = g_ant_texture.width / ANT_FRAMES_NUM;
     player.height = g_ant_texture.height;
@@ -810,35 +819,38 @@ int main(int argc, char *argv[]) {
                             }
                         }
                         break;
+                    case SDL_SCANCODE_F11:
+                        toggle_fullscreen();
+                        break;
                     }
                     if (event.key.repeat == 0)
                         switch (event.key.keysym.scancode) {
-                            case SDL_SCANCODE_W: 
+                            case SDL_SCANCODE_W:
                                 player.vel += ANT_VEL_MAX;
                                 break;
-                            case SDL_SCANCODE_S: 
+                            case SDL_SCANCODE_S:
                                 player.vel -= ANT_VEL_MAX / 2;
                                 break;
-                            case SDL_SCANCODE_A: 
+                            case SDL_SCANCODE_A:
                                 player.turn_vel -= ANT_TURN_DEGREES;
                                 break;
-                            case SDL_SCANCODE_D: 
+                            case SDL_SCANCODE_D:
                                 player.turn_vel += ANT_TURN_DEGREES;
                                 break;
                     }
                     break;
                 case SDL_KEYUP:
                     switch (event.key.keysym.scancode) {
-                        case SDL_SCANCODE_W: 
+                        case SDL_SCANCODE_W:
                             player.vel -= ANT_VEL_MAX;
                             break;
-                        case SDL_SCANCODE_S: 
+                        case SDL_SCANCODE_S:
                             player.vel += ANT_VEL_MAX / 2;
                             break;
-                        case SDL_SCANCODE_A: 
+                        case SDL_SCANCODE_A:
                             player.turn_vel += ANT_TURN_DEGREES;
                             break;
-                        case SDL_SCANCODE_D: 
+                        case SDL_SCANCODE_D:
                             player.turn_vel -= ANT_TURN_DEGREES;
                             break;
                     }
@@ -871,8 +883,7 @@ int main(int argc, char *argv[]) {
 	return 0;
 
 win:;
-    Texture win_texture; 
-    win_texture = win();
+    Texture win_texture = win();
     while(!quit) {
             while(SDL_PollEvent(&event) != 0) {
                 switch (event.type) {
@@ -936,7 +947,7 @@ char *slurp_file(const char *file_path, size_t *size)
 {
     char *buffer = NULL;
 
-    FILE *f = fopen(file_path, "r");
+    FILE *f = fopen(file_path, "rb");
     if (f == NULL) {
         goto error;
     }
@@ -968,7 +979,8 @@ char *slurp_file(const char *file_path, size_t *size)
         goto error;
     }
 
-    *size = n;
+    if (size)
+        *size = n;
 
     fclose(f);
 
