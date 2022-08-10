@@ -7,7 +7,7 @@
 #include <math.h>
 #include <ctype.h>
 #include <stdlib.h>
-#include <string.h>
+#include "map.h"
 
 #define scp(pointer, message) {                                               \
     if (pointer == NULL) {                                                    \
@@ -44,7 +44,6 @@ const int UNIVERSAL_FOOD_COUNT = 40;
 
 enum ANT_STATES {ANT_STATE_PREPARE, ANT_STATE_TURN, ANT_STATE_STEP};
 //maybe these should be structs with properties
-enum MAP {MAP_FREE=0, MAP_WALL=1, MAP_ENCLOSED=2, MAP_FOOD, MAP_ANTHILL};
 
 //Texture - an SDL_Texture with additional information
 typedef struct {
@@ -86,11 +85,6 @@ typedef struct {
     uint8_t won : 1;
 } Player;
 
-typedef struct {
-    int8_t **matrix;
-    int width;
-    int height;
-} Map;
 
 typedef struct {
     short x;
@@ -142,7 +136,7 @@ Point g_ant_move_table[8] = {
 };
 
 #define MAX_LEVEL 10
-int g_levels_table[MAX_LEVEL] = {10, 20, 30, 40, 50, 60, 70, 80, 90, 100};
+int g_levels_table[MAX_LEVEL + 1] = {10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 696969};
 
 //Camera rect
 SDL_Rect g_camera = {
@@ -152,7 +146,6 @@ SDL_Rect g_camera = {
     0
 };
 
-Map g_map = {0};
 
 size_t g_ant_sp;
 Ant **g_ant_stack = NULL;
@@ -169,22 +162,22 @@ char *slurp_file(const char *, size_t *size);
 
 void init(void) {
 
-    g_camera.w = screen_width;
-    g_camera.h = screen_height;
 	scc(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER), "Could not initialize SDL");
     if( !SDL_SetHint( SDL_HINT_RENDER_SCALE_QUALITY, "1" ) ) {
         fprintf(stderr, "Warning: Linear texture filtering not enabled!");
     }
     ttfcc(TTF_Init(), "Could not initialize SDL_ttf");
 
-    //Create window
     scp((g_window = SDL_CreateWindow("Can'ts", 0, 0, screen_width, screen_height, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE)),
             "Could not create window");
+    //TODO:some functions like this may fail
+    SDL_GetWindowSize(g_window, &screen_width, &screen_height);
+    g_camera.w = screen_width;
+    g_camera.h = screen_height;
     //Create renderer for window
     scp((g_renderer = SDL_CreateRenderer(g_window, -1, SDL_RENDERER_ACCELERATED)),
             "Could not create renderer");
 
-    //Initialize PNG loading SDL library
     int imgFlags = IMG_INIT_PNG;
     if(!( IMG_Init(imgFlags) & imgFlags)) {
         fprintf(stderr, "SDL_image could not initialize! SDL_image Error: %s\n", IMG_GetError());
@@ -258,7 +251,6 @@ Texture load_text_texture(const char *text){
 }
 
 void load_media() {
-	//Load PNG texture
     g_ant_texture = load_texture("assets/antspritesheet.png");
     for (int i = 0; i < ANT_FRAMES_NUM; i++) {
         g_antframes[i].x = g_ant_texture.width * i / ANT_FRAMES_NUM;
@@ -522,74 +514,6 @@ Npc *create_npc(int gm_x, int gm_y) {
     return npc;
 }
 
-bool load_map(char *path) {
-    char *map_str;
-    size_t size;
-
-    map_str = slurp_file(path, &size);
-    if (map_str == NULL) {
-        fprintf(stderr, "Could not load map file\n");
-        return false;
-    }
-    //calculate line number
-    size_t line_length;
-    for (line_length = 0; line_length < size && map_str[line_length] != '\n'; line_length++);
-    size_t num_lines = (size + 1) / (line_length + 1);
-    g_map.matrix = malloc(num_lines * sizeof(int8_t *));
-    if (g_map.matrix == NULL) {
-        fprintf(stderr, "Could not allocate memory for the map!\n");
-        return false;
-    }
-
-    //from this point on, line length is measured in tokens (numbers)
-    size_t cur_line = 0;
-    size_t line_len_in_tokens = 0;
-    for (size_t i = 0; i < size; i += line_length + 1) {
-        size_t num_count = 0;
-        size_t j;
-        bool in = false;
-        //check number count
-        for (j = 0; map_str[i + j] != '\n' && i + j < size; j++) {
-            if (in && !isdigit(map_str[i + j])) {
-                in = false;
-            }
-            else if (!in && isdigit(map_str[i + j])) {
-                in = true;
-                num_count++;
-            }
-        }
-        if (i + j < size) map_str[i + j] = '\0';
-        assert(num_count > 0 && "map should have at least one column");
-        if (line_len_in_tokens == 0) line_len_in_tokens = num_count;
-        if (num_count != line_len_in_tokens) {
-            fprintf(stderr, "Wrong map format at line %zu:%zu numbers (lines don't have the same length)!\n", cur_line, num_count);
-            return false;
-        }
-        if (cur_line == num_lines) {
-            fprintf(stderr, "Too many lines when parsing map!\n");
-            return false;
-        }
-        g_map.matrix[cur_line] = malloc(line_len_in_tokens * sizeof(int8_t));
-        if (g_map.matrix[cur_line] == NULL) {
-            fprintf(stderr, "Could not allocate memory for the map!\n");
-            return false;
-        }
-        char *num;
-        j = 0;
-        num = strtok(&map_str[i], " ");
-        g_map.matrix[cur_line][j++] = atoi(num);
-        while ((num = strtok(NULL, " ")) != NULL) {
-            g_map.matrix[cur_line][j++] = atoi(num);
-        }
-        cur_line++;
-    }
-    assert(cur_line == num_lines);
-    g_map.width = line_len_in_tokens;
-    g_map.height = num_lines;
-
-    free(map_str);
-    return true;
-}
 
 Point find_random_free_spot_on_a_map() {
     short x, y;
@@ -690,7 +614,7 @@ void render_game_objects(Player *player, Anthill *anthill) {
 
         //only iterate over walls that are on the screen
         for (int i = g_camera.y / CELL_SIZE; i < (g_camera.y + g_camera.h + CELL_SIZE) / CELL_SIZE && i < g_map.height; i++) {
-            for (int j = g_camera.x / CELL_SIZE; j < (g_camera.x + g_camera.w + CELL_SIZE) / CELL_SIZE && i < g_map.width; j++) {
+            for (int j = g_camera.x / CELL_SIZE; j < (g_camera.x + g_camera.w + CELL_SIZE) / CELL_SIZE && j < g_map.width; j++) {
                 if (g_map.matrix[i][j] == MAP_WALL) {
                     SDL_Rect coords = {
                         j * CELL_SIZE - g_camera.x,
@@ -737,8 +661,8 @@ void toggle_fullscreen(void) {
 
 //TODO: tutorial
 //better player anchor when determing collision
-//make npcs prioretise MAP_FOOD tiles
-//show entire map after you win (don't turn off rendering)
+//make npcs prioretise MAP_FOOD tiles when choosing direction
+//show entire map after win-state achieved
 
 int main(int argc, char *argv[]) {
 
@@ -746,27 +670,25 @@ int main(int argc, char *argv[]) {
     if (argc > 1)
         map_path = argv[1];
     else
-        map_path = "map.txt";
+        map_path = "assets/map.txt";
     printf("Loading map...\n");
     if (!load_map(map_path)) {
         fprintf(stderr, "Could not load map\n");
+        exit(1);
     }
     else
         printf("Map %dx%d loaded successfully!\n", g_map.width, g_map.height);
 
     Anthill anthill = {0};
     init_anthill(&anthill);
-	//Start up SDL and create window
+
     init();
-    SDL_GetWindowSize(g_window, &screen_width, &screen_height);
-    //load needed media
     load_media();
-    //Main loop flag
+
     bool quit = false;
 
     g_eventstart = SDL_RegisterEvents(1);
 
-    //Event handler
     SDL_Event event;
 
     Player player = {0};
@@ -802,7 +724,8 @@ int main(int argc, char *argv[]) {
                             fprintf(stderr, "Warning: Could not allocate memory for an npc ant");
                         break;
                     case SDL_SCANCODE_RCTRL:
-                        goto win;
+                        player.food_count++;
+                        update_food_count_texture(player.food_count, g_levels_table[anthill.level]);
                         break;
 #endif
                     case SDL_SCANCODE_SPACE:
@@ -941,60 +864,5 @@ bool check_collision(SDL_Rect a, SDL_Rect b) {
         a.x >= b.x + b.w)
         return false;
     return true;
-}
-
-char *slurp_file(const char *file_path, size_t *size)
-{
-    char *buffer = NULL;
-
-    FILE *f = fopen(file_path, "rb");
-    if (f == NULL) {
-        goto error;
-    }
-
-    if (fseek(f, 0, SEEK_END) < 0) {
-        goto error;
-    }
-
-    long m = ftell(f);
-    if (m < 0) {
-        goto error;
-    }
-
-    buffer = malloc(sizeof(char) * m);
-    if (buffer == NULL) {
-        goto error;
-    }
-
-    if (fseek(f, 0, SEEK_SET) < 0) {
-        goto error;
-    }
-
-    size_t n = fread(buffer, 1, m, f);
-    if (n != (size_t) m) {
-        goto error;
-    }
-
-    if (ferror(f)) {
-        goto error;
-    }
-
-    if (size)
-        *size = n;
-
-    fclose(f);
-
-    return buffer;
-
-error:
-    if (f) {
-        fclose(f);
-    }
-
-    if (buffer) {
-        free(buffer);
-    }
-
-    return NULL;
 }
 

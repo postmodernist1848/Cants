@@ -1,3 +1,8 @@
 cants
 win64
 cants.exe
+package
+linux64
+*.o
+main
+map_editor

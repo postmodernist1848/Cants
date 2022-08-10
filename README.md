@@ -4,9 +4,9 @@ Can'ts is an Ant simulation made in C with SDL2 (originally made in Python, but 
 Requirements for compilation:
 SDL2, SDL2_image, SDL2_ttf libraries
 
-## Quick start:
+## Build instructions:
 ```console
-make package_linux | cross | native_win64
+make package-linux | cross | native_win64
 ./world_of_ants
 ```
 Use `make native_win64` to compile for Windows or `make package_linux` to compile on Linux.
