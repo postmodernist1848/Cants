@@ -3,6 +3,7 @@
 #include <SDL2/SDL_ttf.h>
 #include <stdio.h>
 #include "map.h"
+#include <errno.h>
 
 #define scp(pointer, message) {                                               \
     if (pointer == NULL) {                                                    \
@@ -110,26 +111,28 @@ Texture load_text_texture(const char *text){
 	return texture_struct;
 }
 
+char *tile_to_string(enum MAP tile) {
+
+    switch (tile) {
+        case MAP_WALL:
+            return "Wall";
+        case MAP_FREE:
+            return "Free";
+        case MAP_ENCLOSED:
+            return "Enclosed";
+        case MAP_FOOD:
+            return "Food";
+        case MAP_ANTHILL:
+            return "Anthill";
+        default:
+            return "Unknown";
+    }
+}
+
 void setmode(int mode) {
     if (mode == cur_mode) return;
     cur_mode = mode;
-    switch (cur_mode) {
-        case MAP_WALL:
-            g_mode_texture = load_text_texture("Wall");
-            break;
-        case MAP_FREE:
-            g_mode_texture = load_text_texture("Free");
-            break;
-        case MAP_ENCLOSED:
-            g_mode_texture = load_text_texture("Enclosed");
-            break;
-        case MAP_FOOD:
-            g_mode_texture = load_text_texture("Food");
-            break;
-        default:
-            g_mode_texture = load_text_texture("Unknown");
-            break;
-    }
+    g_mode_texture = load_text_texture(tile_to_string(cur_mode));
 }
 void init(void) {
 
@@ -169,14 +172,26 @@ bool check_collision(SDL_Rect a, SDL_Rect b) {
     return true;
 }
 
+bool write_map_to_file(char *path) {
+    FILE *map_file = fopen(path, "w");
+    if (map_file == NULL) {
+        fprintf(stderr, "Failed to open %s for writing: %s\n", path, strerror(errno));
+        return false;
+    }
+    for (int i = 0; i < g_map.height; i++) {
+        for (int j = 0; j < g_map.width; j++) {
+            fprintf(map_file, " %d", g_map.matrix[i][j]);
+        }
+        putc('\n', map_file);
+    }
+    return true;
+}
 
-int main (int argc, char *argv[]) {
-
-    char *map_path;
-    if (argc > 1)
-        map_path = argv[1];
-    else
-        map_path = "assets/map.txt";
+void usage(void) {
+    printf("Usage: map_editor edit <file> | create <width> <height> [filename] | info <file> | resize <dx> <dy>\n");
+    exit(0);
+}
+void edit(char *map_path) {
     printf("Loading map...\n");
     if (!load_map(map_path)) {
         fprintf(stderr, "Could not load map\n");
@@ -252,6 +267,11 @@ int main (int argc, char *argv[]) {
                         case SDL_SCANCODE_4:
                             setmode(MAP_FOOD);
                             break;
+                        case SDL_SCANCODE_S:
+                            if (event.key.keysym.mod & KMOD_LCTRL)
+                                if (write_map_to_file(map_path))
+                                    printf("Successfully saved the map!\n");
+                            break;
                     }
                     break;
                 case SDL_WINDOWEVENT:
@@ -311,7 +331,7 @@ int main (int argc, char *argv[]) {
             }
         }
 
-        //hud
+        //drawing tile
         render_texture(g_mode_texture, 0, 0);
 
         SDL_RenderPresent(g_renderer);
@@ -322,6 +342,51 @@ int main (int argc, char *argv[]) {
     SDL_DestroyWindow(g_window);
     IMG_Quit();
     SDL_Quit();
+}
+
+int *get_map_info() {
+
+    int *tile_counts = malloc(MAP_TOTAL * sizeof(int));
+    memset(tile_counts, 0, MAP_TOTAL * sizeof(int));
+    for (int i = 0; i < g_map.height; i++)
+        for (int j = 0; j < g_map.width; j++)
+            tile_counts[g_map.matrix[i][j]]++;
+    return tile_counts;
+}
+
+int main (int argc, char *argv[]) {
+
+    if (argc == 1)
+        usage();
+
+    if (strcmp("edit", *++argv) == 0) {
+        if (*++argv == NULL) {
+            usage();
+        }
+        else {
+            edit(*argv);
+        }
+    }
+    else if (strcmp("info", *argv) == 0) {
+        if (*++argv == NULL) {
+            usage();
+        }
+        else {
+            if (!load_map(*argv)) {
+                fprintf(stderr, "Could not load map\n");
+            }
+            printf("%s: %dx%d\n", *argv, g_map.width, g_map.height);
+            int *info = get_map_info();
+            for (int i = 0; i < MAP_TOTAL; i++) {
+                if (info[i] > 0)
+                    printf("%s: %d\n", tile_to_string(i), info[i]);
+            }
+            free(info);
+        }
+    }
+    else edit(*argv);
+    //create
+    //extend
     return 0;
 }
 

@@ -1,6 +1,6 @@
 CC=gcc
 CFLAGS=-Wall -Wextra -Wno-switch
-LIBS=-lSDL2 -lSDL2_image -lSDL2_ttf -lm
+SDL_LIBS=-lSDL2 -lSDL2_image -lSDL2_ttf
 
 DEBUG_OBJS=main-debug-linux.o map-debug-linux.o
 PACKAGE_OBJS=main-package-linux.o map-package-linux.o
@@ -11,23 +11,23 @@ all: main
 
 # Linux debug build
 main: $(DEBUG_OBJS)
-	$(CC) $(CFLAGS) -ggdb -DDEBUGMODE=1 $(LIBS) -o main $(DEBUG_OBJS)
+	$(CC) $(CFLAGS) -ggdb -DDEBUGMODE=1 $(SDL_LIBS) -lm -o main $(DEBUG_OBJS)
 
 %-debug-linux.o: %.c
-	$(CC) $(CFLAGS) -ggdb -DDEBUGMODE=1 $(LIBS) -c -o $@ $<
+	$(CC) $(CFLAGS) -ggdb -DDEBUGMODE=1 $(SDL_LIBS) -c -o $@ $<
 
 # Linux package build
 package-linux: $(PACKAGE_OBJS)
-	$(CC) $(CFLAGS) -O3 $(LIBS) -o cants $(PACKAGE_OBJS) && strip --strip-unneeded $<
+	$(CC) $(CFLAGS) -O3 $(SDL_LIBS) -lm -o cants $(PACKAGE_OBJS) && strip --strip-unneeded $<
 
 %-package-linux.o: %.c
-	$(CC) $(CFLAGS) -O3 $(LIBS) -c -o $@ $<
+	$(CC) $(CFLAGS) -O3 $(SDL_LIBS) -c -o $@ $<
 
-map_editor: map_editor.c map.c
-	$(CC) $(CFLAGS) -ggdb -O3 $(LIBS) -o map_editor map_editor.c map.c
+editor: editor.c map.c
+	$(CC) $(CFLAGS) $(SDL_LIBS) -o -O3 $@ $^
 
 clean:
-	rm -rf *.o cants main cants.exe
+	rm -rf *.o cants main *.exe editor
 
 #crosscompilation from Linux to Windows or native compilation requires headers and libs copied to the following dirs
 CROSS_CC=x86_64-w64-mingw32-gcc

@@ -69,7 +69,7 @@ bool load_map(char *path) {
 
     map_str = slurp_file(path, &size);
     if (map_str == NULL) {
-        fprintf(stderr, "Could not load map file\n");
+        fprintf(stderr, "Could not load file %s\n", path);
         return false;
     }
     //calculate line number
