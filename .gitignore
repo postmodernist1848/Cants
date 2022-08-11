@@ -5,4 +5,4 @@ package
 linux64
 *.o
 main
-map_editor
+editor

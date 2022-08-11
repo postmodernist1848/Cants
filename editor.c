@@ -24,6 +24,7 @@
 #define ttfcp(pointer, message) { if (pointer == NULL) {fprintf(stderr, "Error: %s! TTF_Error: %s", message, TTF_GetError()); exit(1);}}
 #define ttfcc(code, message) { if (code < 0) {fprintf(stderr, "Error: %s! TTF_Error: %s", message, TTF_GetError()); exit(1);}}
 
+
 typedef struct {
     SDL_Texture *texture_proper;
     int width;
@@ -129,6 +130,10 @@ char *tile_to_string(enum MAP tile) {
     }
 }
 
+int min(int a, int b) {
+    return (a < b) ? a: b;
+}
+
 void setmode(int mode) {
     if (mode == cur_mode) return;
     cur_mode = mode;
@@ -188,13 +193,14 @@ bool write_map_to_file(char *path) {
 }
 
 void usage(void) {
-    printf("Usage: map_editor edit <file> | create <width> <height> [filename] | info <file> | resize <dx> <dy>\n");
+    printf("Usage: editor <file> | create <filename> <width> <height> | info <file>\nSee README for details\n");
     exit(0);
 }
+
 void edit(char *map_path) {
     printf("Loading map...\n");
     if (!load_map(map_path)) {
-        fprintf(stderr, "Could not load map\n");
+        fprintf(stderr, "Failed to load map\n");
         exit(1);
     }
     else
@@ -239,18 +245,18 @@ void edit(char *map_path) {
 
                 case SDL_MOUSEMOTION:
                     if (mmb_pressed) {
-                        if ((g_camera.x += event.motion.xrel) < 0 || g_camera.x + g_camera.w > level_width) g_camera.x -= event.motion.xrel;
-                        if ((g_camera.y += event.motion.yrel) < 0 || g_camera.y + g_camera.h >= level_height) g_camera.y -= event.motion.yrel;
+                        g_camera.x += event.motion.xrel;
+                        g_camera.y += event.motion.yrel;
                     }
                     else if (lmb_pressed) {
                         int x = event.motion.x + g_camera.x, y = event.motion.y + g_camera.y; 
                         if (x > 0 && x < level_width && y > 0 && y < level_height)
-                        g_map.matrix[y / CELL_SIZE][x / CELL_SIZE] = cur_mode;
+                            g_map.matrix[y / CELL_SIZE][x / CELL_SIZE] = cur_mode;
                     }
                     else if (rmb_pressed) {
                         int x = event.motion.x + g_camera.x, y = event.motion.y + g_camera.y; 
                         if (x > 0 && x < level_width && y > 0 && y < level_height)
-                        g_map.matrix[y / CELL_SIZE][x / CELL_SIZE] = MAP_FREE;
+                            g_map.matrix[y / CELL_SIZE][x / CELL_SIZE] = MAP_FREE;
                     }
                     break;
                 case SDL_KEYDOWN:
@@ -301,8 +307,9 @@ void edit(char *map_path) {
         }
 
         SDL_SetRenderDrawColor(g_renderer, 0x00, 0x90, 0x00, 0xFF);
-        for (int i = 0; i < (g_camera.y + g_camera.h + CELL_SIZE) / CELL_SIZE; i++) {
-            for (int j = 0; j < (g_camera.x + g_camera.w + CELL_SIZE) / CELL_SIZE; j++) {
+        for (int i = 0; i < min((g_camera.y + g_camera.h + CELL_SIZE) / CELL_SIZE, g_map.height); i++) {
+            for (int j = 0; j < min((g_camera.x + g_camera.w + CELL_SIZE) / CELL_SIZE, g_map.width); j++) {
+                printf("%d, %d, %d\n", i, j, g_map.matrix[i][j]);
                 if (g_map.matrix[i][j] == MAP_WALL) {
                     SDL_Rect coords = {
                         j * CELL_SIZE - g_camera.x,
@@ -310,7 +317,6 @@ void edit(char *map_path) {
                         CELL_SIZE,
                         CELL_SIZE
                     };
-                    //TODO: compare SDL_RenderFillRect and SDL_FillRect speed
                     SDL_RenderFillRect(g_renderer, &coords);
                 }
                 else if (g_map.matrix[i][j] == MAP_FOOD) {
@@ -323,7 +329,6 @@ void edit(char *map_path) {
                         CELL_SIZE,
                         CELL_SIZE
                     };
-                    //TODO: compare SDL_RenderFillRect and SDL_FillRect speed
                     SDL_SetRenderDrawColor(g_renderer, 0x00, 0x90, 0x90, 0xFF);
                     SDL_RenderFillRect(g_renderer, &coords);
                     SDL_SetRenderDrawColor(g_renderer, 0x00, 0x90, 0x00, 0xFF);
@@ -354,6 +359,29 @@ int *get_map_info() {
     return tile_counts;
 }
 
+bool isnumber(char *str) {
+    while (*str) {
+        if (!isdigit(*str++)) return false;
+    }
+    return true;
+}
+
+bool create_map(char *name, int width, int height) {
+    FILE *map = fopen(name, "w");
+    if (map == NULL) {
+        fprintf(stderr, "Failed to open %s for writing: %s\n", name, strerror(errno));
+        return false;
+    }
+    for (int i = 0; i < height; i++) {
+        for (int j = 0; j < width - 1; j++) {
+            putc('0', map); putc(' ', map);
+        }
+        putc('0', map); putc('\n', map);
+    }
+    fclose(map);
+    return true;
+}
+
 int main (int argc, char *argv[]) {
 
     if (argc == 1)
@@ -372,21 +400,41 @@ int main (int argc, char *argv[]) {
             usage();
         }
         else {
-            if (!load_map(*argv)) {
-                fprintf(stderr, "Could not load map\n");
+            if (load_map(*argv)) {
+                printf("%s: %dx%d\n", *argv, g_map.width, g_map.height);
+                int *info = get_map_info();
+                for (int i = 0; i < MAP_TOTAL; i++) {
+                    if (info[i] > 0)
+                        printf("%s: %d\n", tile_to_string(i), info[i]);
+                }
+                free(info);
             }
-            printf("%s: %dx%d\n", *argv, g_map.width, g_map.height);
-            int *info = get_map_info();
-            for (int i = 0; i < MAP_TOTAL; i++) {
-                if (info[i] > 0)
-                    printf("%s: %d\n", tile_to_string(i), info[i]);
-            }
-            free(info);
         }
     }
+    else if (strcmp("create", *argv) == 0) {
+        if (*++argv == NULL || argv[1] == NULL || argv[2] == NULL)
+            usage();
+        if (!isnumber(argv[1]) || !isnumber(argv[2])) {
+            printf("Dimension provided is not a positive number\n");
+            exit(1);
+        }
+        int width = atoi(argv[1]), height = atoi(argv[2]);
+        if (width == 0) {
+            printf("Width cannot be 0!\n");
+            exit(1);
+        }
+        if (height == 0) {
+            printf("Height cannot be 0!\n");
+            exit(1);
+        }
+        printf("%dx%d map %s created successfully\n", width, height, *argv);
+        
+    }
+    else if(strcmp("help", *argv) == 0 || strcmp("-help", *argv) == 0 || strcmp("--help", *argv) == 0) {
+        usage();
+    }
     else edit(*argv);
-    //create
-    //extend
+    //TODO: resize
     return 0;
 }
 

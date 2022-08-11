@@ -87,11 +87,6 @@ typedef struct {
 
 
 typedef struct {
-    short x;
-    short y;
-} Point;
-
-typedef struct {
     int x;
     int y;
     int gm_x;
@@ -514,33 +509,6 @@ Npc *create_npc(int gm_x, int gm_y) {
     return npc;
 }
 
-
-Point find_random_free_spot_on_a_map() {
-    short x, y;
-    while (g_map.matrix[y = rand() % g_map.height][x = rand() % g_map.width] != MAP_FREE);
-    Point point = {x, y};
-    return point;
-}
-
-//not the most efficient way, but allows to check if there are free points at all
-//TODO: index all free spaces and make this function extra fast and safe
-Point find_random_free_spot_on_a_map_safe() {
-    Point free_points[g_map.height * g_map.width];
-    int sp = 0;
-    Point point;
-    for (int i = 0; i < g_map.height; i++) {
-        for (int j = 0; j < g_map.width; j++) {
-            if (g_map.matrix[i][j] == MAP_FREE) {
-                point.y = i;
-                point.x = j;
-                free_points[sp++] = point;
-            }
-        }
-    }
-    assert(sp > 0);
-    return free_points[rand() % sp];
-}
-
 //TODO:create food outside the camera only
 void create_food(void) {
     Point point = find_random_free_spot_on_a_map();
@@ -548,13 +516,11 @@ void create_food(void) {
     g_world_food_count++;
 }
 
-
-//TODO: maybe add another type MAP_ANTHILL
 //coordinates of the entrance (where the ants spawn)
 void init_anthill(Anthill *anthill) {
     anthill->x = LEVEL_WIDTH / 2 - CELL_SIZE * 1;
     anthill->y = LEVEL_HEIGHT / 2;
-    //pos of the entrance
+
     int gm_x = anthill->gm_x = anthill->x / CELL_SIZE + 1;
     int gm_y = anthill->gm_y = anthill->y / CELL_SIZE;
 
