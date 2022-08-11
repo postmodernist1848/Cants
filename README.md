@@ -17,7 +17,9 @@ Controls:
     Space to upgrade anthill when inside
 
 
--------------------------------- Map Editor ----------------------------------------------
+------------------------------------------------------------------------------------------
+## Map Editor
+
 Cants includes a map editor! It allows anyone to create their own maps. It is very easy to use:
 ```console
 editor <file> | create <filename> <width> <height> | info <file>
@@ -30,5 +32,4 @@ Info command gives a quick summary on the size and tile counts for the map.
 
 You can also create a map with 'create' command by providing its dimensions.
 
-------------------------------------------------------------------------------------------
 
