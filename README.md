@@ -12,10 +12,14 @@ make package-linux | cross | native-win64
 Use `make native-win64` to compile for Windows or `make package-linux` to compile on Linux.
 Use 'cross' option to compile for Windows on Linux with mingw.
 
+In cants_config.h you may set ANDROID_BUILD to 1 to compile with Android features
+
 Controls:
     WASD to move
     Space to upgrade anthill when inside
-
+Android:
+    Tap on the right (left) of the screen to turn right (left)
+    Tap on the top of the screen in the center to move forward or on the bottom to move backwards
 
 ------------------------------------------------------------------------------------------
 ## Map Editor
