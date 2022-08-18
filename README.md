@@ -26,7 +26,7 @@ Tap on the right (left) of the screen to turn right (left)
 
 Tap on the top of the screen in the center to move forward or on the bottom to move backwards
 
-When inside the anthill, tap on it to upgrade granted that you have enough leaves.
+When inside the anthill, tap on it to upgrade, granted that you have enough leaves
 
 ------------------------------------------------------------------------------------------
 ## Map Editor
