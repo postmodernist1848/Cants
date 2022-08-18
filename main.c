@@ -823,6 +823,11 @@ int main(int argc, char *argv[]) {
                         g_camera.w = screen_width;
                         g_camera.h = screen_height;
                       }
+#if ANDROID_BUILD
+                      if (event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) {
+                          SDL_SetWindowFullscreen(g_window, SDL_WINDOW_FULLSCREEN);
+                      }
+#endif
                     break;
                 case SDL_QUIT:
                     quit = true;
