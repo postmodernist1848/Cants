@@ -4,6 +4,7 @@ SDL_LIBS=-lSDL2 -lSDL2_image -lSDL2_ttf
 
 DEBUG_OBJS=main-debug-linux.o map-debug-linux.o
 PACKAGE_OBJS=main-package-linux.o map-package-linux.o
+ANDROID_OBJS=main-debug-android.o map-debug-android.o
 
 .PHONY: clean
 

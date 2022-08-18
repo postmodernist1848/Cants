@@ -309,7 +309,6 @@ void edit(char *map_path) {
         SDL_SetRenderDrawColor(g_renderer, 0x00, 0x90, 0x00, 0xFF);
         for (int i = 0; i < min((g_camera.y + g_camera.h + CELL_SIZE) / CELL_SIZE, g_map.height); i++) {
             for (int j = 0; j < min((g_camera.x + g_camera.w + CELL_SIZE) / CELL_SIZE, g_map.width); j++) {
-                printf("%d, %d, %d\n", i, j, g_map.matrix[i][j]);
                 if (g_map.matrix[i][j] == MAP_WALL) {
                     SDL_Rect coords = {
                         j * CELL_SIZE - g_camera.x,

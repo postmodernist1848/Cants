@@ -1,0 +1,9 @@
+1. Indexing free spots on the map
+- Index free spots in the map in a list to make finding a random free tile on a map fast and safe:
+    make an array - add on the top when adding free tiles - memov when removing?
+    linked list won't work 'cause random access is needed
+    perhaps check every random tile until we get one that's outside the camera (that makes this function unsafe in case all the free spots are inside the map (is that even possible though? maybe I shouldn't even care about this if we make loading the map error-free)
+    counterpoint: when we scanned entire map we could leave off the tiles in the camera in the for loop thought that's slow anyway
+    indexing in an array (stack with random access) seems like the best solution 
+
+2. Add Fullscreen to Android version and disable vertical mode (?)

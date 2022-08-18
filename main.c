@@ -8,6 +8,7 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include "map.h"
+#include "cants_config.h"
 
 #define scp(pointer, message) {                                               \
     if (pointer == NULL) {                                                    \
@@ -162,9 +163,15 @@ void init(void) {
         fprintf(stderr, "Warning: Linear texture filtering not enabled!");
     }
     ttfcc(TTF_Init(), "Could not initialize SDL_ttf");
-
-    scp((g_window = SDL_CreateWindow("Can'ts", 0, 0, screen_width, screen_height, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE)),
+#if ANDROID_BUILD
+    scp((g_window = SDL_CreateWindow("Can'ts", 0, 0, screen_width, screen_height,
+        SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_FULLSCREEN)),
             "Could not create window");
+#else
+    scp((g_window = SDL_CreateWindow("Can'ts", 0, 0, screen_width, screen_height,
+        SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE)),
+            "Could not create window");
+#endif
     //TODO:some functions like this may fail
     SDL_GetWindowSize(g_window, &screen_width, &screen_height);
     g_camera.w = screen_width;
@@ -246,20 +253,20 @@ Texture load_text_texture(const char *text){
 }
 
 void load_media() {
-    g_ant_texture = load_texture("assets/antspritesheet.png");
+    g_ant_texture = load_texture(ASSETS_PREFIX"antspritesheet.png");
     for (int i = 0; i < ANT_FRAMES_NUM; i++) {
         g_antframes[i].x = g_ant_texture.width * i / ANT_FRAMES_NUM;
         g_antframes[i].y = 0;
         g_antframes[i].h = g_ant_texture.height;
         g_antframes[i].w = g_ant_texture.width / ANT_FRAMES_NUM;
     }
-    g_background_texture = load_texture("assets/grass500x500.png");
+    g_background_texture = load_texture(ASSETS_PREFIX"grass500x500.png");
     //<a href="https://www.freepik.com/vectors/cartoon-grass">Cartoon grass vector created by babysofja - www.freepik.com</a>
-    g_leaf_texture = load_texture("assets/leaf.png");
-    g_font = TTF_OpenFont("assets/OpenSans-Regular.ttf", 50);
+    g_leaf_texture = load_texture(ASSETS_PREFIX"leaf.png");
+    g_font = TTF_OpenFont(ASSETS_PREFIX"OpenSans-Regular.ttf", 50);
     g_food_count_texture = load_text_texture("0/10");
-    g_anthill_texture = load_texture("assets/anthill.png");
-    g_anthill_icon_texture = load_texture("assets/anthill_icon.png");
+    g_anthill_texture = load_texture(ASSETS_PREFIX"anthill.png");
+    g_anthill_icon_texture = load_texture(ASSETS_PREFIX"anthill_icon.png");
     g_upgrade_prompt_texture = load_text_texture("Press Space to upgrade");
     g_anthill_level_texture = load_text_texture("1/10");
 }
@@ -344,8 +351,7 @@ void render_texture(Texture texture, int x, int y) {
     SDL_RenderCopy(g_renderer, texture.texture_proper, NULL, &render_rect);
 }
 
-void set_camera(Player *player)
-{
+void set_camera(Player *player) {
     //Center the camera over the player
     g_camera.x = ((int) player->ant->x + g_ant_texture.width / (2 * ANT_FRAMES_NUM)) - screen_width / 2;
     g_camera.y = ((int) player->ant->y + g_ant_texture.height / 2) - screen_height / 2;
@@ -629,9 +635,21 @@ void toggle_fullscreen(void) {
 //better player anchor when determing collision
 //make npcs prioretise MAP_FOOD tiles when choosing direction
 //show entire map after win-state achieved
+//TODOO:replace printfs with SDL_Log to have text output on mobile devices
+//TODOO: remove useless anthll.x and anthill.y (for resizeable windows)
+//TODO: use SDL file reading to open the map file on Android
 
 int main(int argc, char *argv[]) {
-
+#if ANDROID_BUILD
+    (void) argc;
+    (void) argv;
+    if (!load_map()) {
+        fprintf(stderr, "Could not load map\n");
+        exit(1);
+    }
+    else
+        printf("Map %dx%d loaded successfully!\n", g_map.width, g_map.height);
+#else
     char *map_path;
     if (argc > 1)
         map_path = argv[1];
@@ -644,6 +662,7 @@ int main(int argc, char *argv[]) {
     }
     else
         printf("Map %dx%d loaded successfully!\n", g_map.width, g_map.height);
+#endif
 
     Anthill anthill = {0};
     init_anthill(&anthill);
@@ -681,6 +700,58 @@ int main(int argc, char *argv[]) {
         //Handle events on queue
         while(SDL_PollEvent(&event) != 0) {
             switch (event.type) {
+#if ANDROID_BUILD
+                case SDL_FINGERDOWN:;
+                    int x = event.tfinger.x * screen_width, y = event.tfinger.y * screen_height;
+                    SDL_Log("g_camera.x: %d, x: %d\n", g_camera.x, x);
+                    SDL_Log("SDL_FINGERDOWN  gm_x * CELL_SIZE: %d <= x - g_camera.x: %d <= gm_x * CELL_SIZE + anthill_texture.width: %d\n",
+                            anthill.gm_x * CELL_SIZE, x - g_camera.x, anthill.gm_x * CELL_SIZE + g_anthill_texture.width);
+                    if (anthill.gm_x * CELL_SIZE <= x + g_camera.x && x + g_camera.x <= anthill.gm_x * CELL_SIZE + g_anthill_texture.width &&
+                        anthill.gm_y * CELL_SIZE <= y + g_camera.y && y + g_camera.y <= anthill.gm_y * CELL_SIZE + g_anthill_texture.height) {
+                        SDL_Log("pressed on anthill\n");
+
+                        if (player.in_anthill && player.food_count >= g_levels_table[anthill.level] && anthill.level < MAX_LEVEL) {
+                            player.food_count -= g_levels_table[anthill.level];
+                            update_food_count_texture(player.food_count, g_levels_table[anthill.level + 1]);
+                            for (int i = 0; i < g_levels_table[anthill.level] / 2; i++)
+                                if (create_npc(anthill.gm_x, anthill.gm_y) == NULL)
+                                    fprintf(stderr, "Warning: could not create NPC ant\n");
+                            update_anthill_level_texture(++anthill.level);
+                            if (anthill.level == MAX_LEVEL) {
+                                goto win;
+                            }
+                        }
+                    }
+                    else if (event.tfinger.x <= 1.0 / 3) {
+                        player.turn_vel = -ANT_TURN_DEGREES;
+                        SDL_Log("left\n");
+                    }
+
+                    else if (event.tfinger.x >= 2.0 / 3) {
+                        SDL_Log("right\n");
+                        player.turn_vel = ANT_TURN_DEGREES;
+                    }
+                    else if (event.tfinger.y <= 0.5)
+                        if (player.vel < 0)
+                            player.vel = 0;
+                        else
+                            player.vel = ANT_VEL_MAX;
+                    else
+                        if (player.vel > 0)
+                            player.vel = 0;
+                        else
+                            player.vel = -ANT_VEL_MAX / 2;
+
+                    break;
+                case SDL_FINGERUP:
+                    if (event.tfinger.x <= 1.0 / 3)
+                        player.turn_vel = 0;
+                        //left
+                    else if (event.tfinger.x >= 2.0 / 3)
+                        player.turn_vel = 0;
+                        //right
+                    break;
+#else
                 case SDL_KEYDOWN:
                 switch (event.key.keysym.scancode) {
 #if DEBUGMODE
@@ -744,6 +815,7 @@ int main(int argc, char *argv[]) {
                             break;
                     }
                     break;
+#endif
                 case SDL_WINDOWEVENT:
                       if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
                         screen_width = event.window.data1;
