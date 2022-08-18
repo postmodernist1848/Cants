@@ -1,5 +1,5 @@
 # Cants
-Can'ts is an Ant simulation made in C with SDL2 (originally made in Python, but rewritten and improved to prove my competence)
+Can'ts is an game about ants made in C with SDL2 (original simulation was made in Python, but rewritten and turned into a game)
 
 Requirements for compilation:
 SDL2, SDL2_image, SDL2_ttf libraries
@@ -14,12 +14,19 @@ Use 'cross' option to compile for Windows on Linux with mingw.
 
 In cants_config.h you may set ANDROID_BUILD to 1 to compile with Android features
 
-Controls:
-    WASD to move
-    Space to upgrade anthill when inside
+--- Controls ---
+
+WASD to move
+
+Space to upgrade anthill when inside
+
 Android:
-    Tap on the right (left) of the screen to turn right (left)
-    Tap on the top of the screen in the center to move forward or on the bottom to move backwards
+
+Tap on the right (left) of the screen to turn right (left)
+
+Tap on the top of the screen in the center to move forward or on the bottom to move backwards
+
+When inside the anthill, tap on it to upgrade granted that you have enough leaves.
 
 ------------------------------------------------------------------------------------------
 ## Map Editor
