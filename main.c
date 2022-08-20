@@ -81,8 +81,7 @@ typedef struct {
     int width;
     int height;
     int food_count;
-    uint8_t in_anthill : 1;
-    uint8_t won : 1;
+    bool in_anthill;
 } Player;
 
 
@@ -631,12 +630,12 @@ void toggle_fullscreen(void) {
 //////////////// MAIN ///////////////////////////////////////////////////////////
 
 //!TODO: use SDL file reading to open the map file on Android
-//TODO: tutorial
+//!TODO: set the anthill pos in the map editor
 //TODO: better player anchor when determing collision
 //TODO: make npcs prioretise MAP_FOOD tiles when choosing direction
 //TODO: create food on the screen only
-//TODO: fix rendering flickering issue
-//TODO: show entire map after win-state achieved
+//TODO: show entire map after win-state achieved (introducing scaling also (maybe increase the scale for mobile))
+//TODO: tutorial
 
 int main(int argc, char *argv[]) {
 #if ANDROID_BUILD
@@ -694,9 +693,8 @@ int main(int argc, char *argv[]) {
     //call move_player each ANT_MS_TO_MOVE sec
     SDL_AddTimer(ANT_MS_TO_MOVE, move_player, (void *) &player);
 
-    //While application is running
     while(!quit) {
-        //Handle events on queue
+
         while(SDL_PollEvent(&event) != 0) {
             switch (event.type) {
 #if ANDROID_BUILD
@@ -708,9 +706,11 @@ int main(int argc, char *argv[]) {
                         if (player.in_anthill && player.food_count >= g_levels_table[anthill.level] && anthill.level < MAX_LEVEL) {
                             player.food_count -= g_levels_table[anthill.level];
                             update_food_count_texture(player.food_count, g_levels_table[anthill.level + 1]);
+
                             for (int i = 0; i < g_levels_table[anthill.level] / 2; i++)
                                 if (create_npc(anthill.gm_x, anthill.gm_y) == NULL)
                                     SDL_Log("Warning: could not create NPC ant\n");
+
                             update_anthill_level_texture(++anthill.level);
                             if (anthill.level == MAX_LEVEL) {
                                 goto win;
@@ -738,11 +738,11 @@ int main(int argc, char *argv[]) {
                     break;
                 case SDL_FINGERUP:
                     if (event.tfinger.x <= 1.0 / 3)
-                        player.turn_vel = 0;
                         //left
-                    else if (event.tfinger.x >= 2.0 / 3)
                         player.turn_vel = 0;
+                    else if (event.tfinger.x >= 2.0 / 3)
                         //right
+                        player.turn_vel = 0;
                     break;
 #else
                 case SDL_KEYDOWN:
@@ -759,7 +759,7 @@ int main(int argc, char *argv[]) {
                         break;
 #endif
                     case SDL_SCANCODE_SPACE:
-                        //upgrade
+                        //upgrade if inside (copied to android btw which is a problem)
                         if (player.in_anthill && player.food_count >= g_levels_table[anthill.level] && anthill.level < MAX_LEVEL) {
                             player.food_count -= g_levels_table[anthill.level];
                             update_food_count_texture(player.food_count, g_levels_table[anthill.level + 1]);

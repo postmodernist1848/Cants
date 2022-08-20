@@ -227,7 +227,7 @@ Point find_random_free_spot_on_a_map(void) {
 }
 
 //not the most efficient way, but allows to check if there are free points at all
-//TODO: index all free spaces and make this function extra fast and safe
+//TODO: index all free spaces and make this function extra fast and safe or find a better way to do this
 Point find_random_free_spot_on_a_map_safe(void) {
     Point free_points[g_map.height * g_map.width];
     int sp = 0;
