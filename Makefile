@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-Wall -Wextra -Wno-switch
+CFLAGS=-Wall -Wextra -Wno-switch -Wunused
 SDL_LIBS=-lSDL2 -lSDL2_image -lSDL2_ttf
 
 DEBUG_OBJS=main-debug-linux.o map-debug-linux.o

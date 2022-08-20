@@ -12,22 +12,22 @@
 
 #define scp(pointer, message) {                                               \
     if (pointer == NULL) {                                                    \
-        fprintf(stderr, "Error: %s! SDL_Error: %s", message, SDL_GetError()); \
+        SDL_Log("Error: %s! SDL_Error: %s", message, SDL_GetError()); \
         exit(1);                                                              \
     }                                                                         \
 }
 
 #define scc(code, message) {                                                  \
     if (code < 0) {                                                           \
-        fprintf(stderr, "Error: %s! SDL_Error: %s", message, SDL_GetError()); \
+        SDL_Log("Error: %s! SDL_Error: %s", message, SDL_GetError()); \
         exit(1);                                                              \
     }                                                                         \
 }
 
-#define imgcp(pointer, message) { if (pointer == NULL) {fprintf(stderr, "Error: %s! IMG_Error: %s", message, IMG_GetError()); exit(1);}}
-#define imgcc(code, message) { if (code < 0) {fprintf(stderr, "Error: %s! IMG_Error: %s", message, IMG_GetError()); exit(1);}}
-#define ttfcp(pointer, message) { if (pointer == NULL) {fprintf(stderr, "Error: %s! TTF_Error: %s", message, TTF_GetError()); exit(1);}}
-#define ttfcc(code, message) { if (code < 0) {fprintf(stderr, "Error: %s! TTF_Error: %s", message, TTF_GetError()); exit(1);}}
+#define imgcp(pointer, message) { if (pointer == NULL) {SDL_Log("Error: %s! IMG_Error: %s", message, IMG_GetError()); exit(1);}}
+#define imgcc(code, message) { if (code < 0) {SDL_Log("Error: %s! IMG_Error: %s", message, IMG_GetError()); exit(1);}}
+#define ttfcp(pointer, message) { if (pointer == NULL) {SDL_Log("Error: %s! TTF_Error: %s", message, TTF_GetError()); exit(1);}}
+#define ttfcc(code, message) { if (code < 0) {SDL_Log("Error: %s! TTF_Error: %s", message, TTF_GetError()); exit(1);}}
 
 #define emod(a, b) (((a) % (b)) + (b)) % (b)
 
@@ -44,7 +44,6 @@ const int ANT_STEP_LEN = CELL_SIZE;
 const int UNIVERSAL_FOOD_COUNT = 40;
 
 enum ANT_STATES {ANT_STATE_PREPARE, ANT_STATE_TURN, ANT_STATE_STEP};
-//maybe these should be structs with properties
 
 //Texture - an SDL_Texture with additional information
 typedef struct {
@@ -97,9 +96,8 @@ typedef struct {
 
 //////////////// GLOBALS ////////////////////////////////////////////////////////
 
-//The window we'll be rendering to
 SDL_Window* g_window;
-//The window renderer
+
 SDL_Renderer* g_renderer;
 
 Uint32 g_eventstart;
@@ -115,6 +113,7 @@ Texture g_anthill_level_texture;
 TTF_Font *g_font;
 
 int g_world_food_count;
+
 //Ant frames clip rects
 #define ANT_FRAMES_NUM 4
 SDL_Rect g_antframes[ANT_FRAMES_NUM];
@@ -132,16 +131,14 @@ Point g_ant_move_table[8] = {
 };
 
 #define MAX_LEVEL 10
-int g_levels_table[MAX_LEVEL + 1] = {10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 696969};
+int g_levels_table[MAX_LEVEL + 1] = {10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 100};
 
-//Camera rect
 SDL_Rect g_camera = {
     0,
     0,
     0,
     0
 };
-
 
 size_t g_ant_sp;
 Ant **g_ant_stack = NULL;
@@ -150,17 +147,18 @@ Ant **g_ant_stack = NULL;
 
 //push an ant onto ant stack
 bool push_ant(Ant * ant);
-//get random int between from and to
-int randint(int from, int to);
+
+//create a dynamically allocated stack which holds ants and is used for rendering them all
 Ant **init_ant_stack(void);
+
+//check collision of two axis aligned rectangles
 bool check_collision(SDL_Rect x, SDL_Rect y);
-char *slurp_file(const char *, size_t *size);
 
 void init(void) {
 
 	scc(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER), "Could not initialize SDL");
     if( !SDL_SetHint( SDL_HINT_RENDER_SCALE_QUALITY, "1" ) ) {
-        fprintf(stderr, "Warning: Linear texture filtering not enabled!");
+        SDL_Log("Warning: Linear texture filtering not enabled!");
     }
     ttfcc(TTF_Init(), "Could not initialize SDL_ttf");
 #if ANDROID_BUILD
@@ -177,17 +175,17 @@ void init(void) {
     g_camera.w = screen_width;
     g_camera.h = screen_height;
     //Create renderer for window
-    scp((g_renderer = SDL_CreateRenderer(g_window, -1, SDL_RENDERER_ACCELERATED)),
+    scp((g_renderer = SDL_CreateRenderer(g_window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC)),
             "Could not create renderer");
 
     int imgFlags = IMG_INIT_PNG;
     if(!( IMG_Init(imgFlags) & imgFlags)) {
-        fprintf(stderr, "SDL_image could not initialize! SDL_image Error: %s\n", IMG_GetError());
+        SDL_Log("SDL_image could not initialize! SDL_image Error: %s\n", IMG_GetError());
         exit(1);
     }
     //init stack with ant pointers
     if (init_ant_stack() == NULL) {
-        fprintf(stderr, "Error: Could not initialize ant stack!");
+        SDL_Log("Error: Could not initialize ant stack!");
         exit(1);
     }
 }
@@ -307,11 +305,12 @@ Ant *create_ant(int x, int y) {
     }
     memset((void *) ant, 0, sizeof(Ant));
     ant->anim_time = SDL_GetTicks();
-    ant->x = x; //randint(g_camera.x, g_camera.x + screen_width - g_ant_texture.width / ANT_FRAMES_NUM);
-    ant->y = y; //randint(g_camera.y, g_camera.y + screen_height - g_ant_texture.height);
+    ant->x = x;
+    ant->y = y;
+
     ant->scale = (double) rand() / RAND_MAX + 0.75;
 #if DEBUGMODE
-    printf("Ant #%ld created at x %d y %d\n", g_ant_sp, (int) ant->x, (int) ant->y);
+    SDL_Log("Ant #%ld created at x %d y %d\n", g_ant_sp, (int) ant->x, (int) ant->y);
 #endif
     return ant;
 }
@@ -416,7 +415,6 @@ Uint32 move_player(Uint32 interval, void *player_void) {
                 break;
         }
     }
-    set_camera(player);
 
     return interval;
 }
@@ -440,15 +438,16 @@ Uint32 move_npc(Uint32 interval, void *npc_void) {
     Npc *npc = (Npc *) npc_void;
     switch (npc->state) {
         case ANT_STATE_PREPARE:
-            //TODO:make MAP_FOOD a priority when choosing angle
-            target_rotation = randint(0, 4) * 45;
-            npc->cw = randint(0, 1) * 2 - 1;
+            target_rotation = rand() % 5 * 45;
+            npc->cw = rand() % 2 * 2 - 1;
             npc->target_angle = emod(npc->ant->angle + target_rotation * npc->cw, 360);
             npc->steps_done = 0;
+
             //next game cell
             int gm_x_next = npc->gm_x + g_ant_move_table[npc->target_angle / 45].x;
             int gm_y_next = npc->gm_y + g_ant_move_table[npc->target_angle / 45].y;
-            //TODO: fix - may segfault on boundary of the map
+
+            //TODO: may segfault on boundary of the map
             if (g_map.matrix[gm_y_next][gm_x_next] != MAP_WALL && g_map.matrix[gm_y_next][gm_x_next] != MAP_ANTHILL) {
                 npc->gm_x = gm_x_next;
                 npc->gm_y = gm_y_next;
@@ -499,11 +498,11 @@ Npc *create_npc(int gm_x, int gm_y) {
     npc->ant = create_ant((gm_x + 0.5) * CELL_SIZE, (gm_y + 0.5) * CELL_SIZE);
     if (npc->ant == NULL) {
         free(npc);
-        fprintf(stderr, "Warning: Could not allocate memory for an npc ant");
+        SDL_Log("Warning: Could not allocate memory for an npc ant");
         return NULL;
     }
     if (!push_ant(npc->ant)) {
-        fprintf(stderr, "Warning: could not push npc ant\n");
+        SDL_Log("Warning: could not push npc ant\n");
         free(npc->ant);
         free(npc);
         return NULL;
@@ -550,7 +549,6 @@ return win_texture;
 }
 
 void render_game_objects(Player *player, Anthill *anthill) {
-        //Clear screen
         SDL_SetRenderDrawColor(g_renderer, 0x00, 0x90, 0x00, 0xFF);
         SDL_RenderClear(g_renderer);
 
@@ -570,6 +568,7 @@ void render_game_objects(Player *player, Anthill *anthill) {
         }
 
         render_player_anim(player);
+        set_camera(player);
 
         //render ants which are on the screen
         for (size_t i = 0; i < g_ant_sp; i++) {
@@ -584,7 +583,7 @@ void render_game_objects(Player *player, Anthill *anthill) {
             }
         }
 
-        //only iterate over walls that are on the screen
+
         for (int i = g_camera.y / CELL_SIZE; i < (g_camera.y + g_camera.h + CELL_SIZE) / CELL_SIZE && i < g_map.height; i++) {
             for (int j = g_camera.x / CELL_SIZE; j < (g_camera.x + g_camera.w + CELL_SIZE) / CELL_SIZE && j < g_map.width; j++) {
                 if (g_map.matrix[i][j] == MAP_WALL) {
@@ -631,37 +630,37 @@ void toggle_fullscreen(void) {
 
 //////////////// MAIN ///////////////////////////////////////////////////////////
 
+//!TODO: use SDL file reading to open the map file on Android
 //TODO: tutorial
-//better player anchor when determing collision
-//make npcs prioretise MAP_FOOD tiles when choosing direction
-//show entire map after win-state achieved
-//TODOO:replace printfs with SDL_Log to have text output on mobile devices
-//TODOO: remove useless anthll.x and anthill.y (for resizeable windows)
-//TODO: use SDL file reading to open the map file on Android
+//TODO: better player anchor when determing collision
+//TODO: make npcs prioretise MAP_FOOD tiles when choosing direction
+//TODO: create food on the screen only
+//TODO: fix rendering flickering issue
+//TODO: show entire map after win-state achieved
 
 int main(int argc, char *argv[]) {
 #if ANDROID_BUILD
     (void) argc;
     (void) argv;
     if (!load_map()) {
-        fprintf(stderr, "Could not load map\n");
+        SDL_Log("Could not load map\n");
         exit(1);
     }
     else
-        printf("Map %dx%d loaded successfully!\n", g_map.width, g_map.height);
+        SDL_Log("Map %dx%d loaded successfully!\n", g_map.width, g_map.height);
 #else
     char *map_path;
     if (argc > 1)
         map_path = argv[1];
     else
         map_path = "assets/map.txt";
-    printf("Loading map...\n");
+    SDL_Log("Loading map...\n");
     if (!load_map(map_path)) {
-        fprintf(stderr, "Could not load map\n");
+        SDL_Log("Could not load map\n");
         exit(1);
     }
     else
-        printf("Map %dx%d loaded successfully!\n", g_map.width, g_map.height);
+        SDL_Log("Map %dx%d loaded successfully!\n", g_map.width, g_map.height);
 #endif
 
     Anthill anthill = {0};
@@ -679,7 +678,7 @@ int main(int argc, char *argv[]) {
     Player player = {0};
     player.ant = create_ant(LEVEL_WIDTH / 2, LEVEL_HEIGHT / 2);
     if (player.ant == NULL) {
-        fprintf(stderr, "Error: could not allocate memory for player ant\n");
+        SDL_Log("Error: could not allocate memory for player ant\n");
         exit(1);
     }
 
@@ -703,19 +702,15 @@ int main(int argc, char *argv[]) {
 #if ANDROID_BUILD
                 case SDL_FINGERDOWN:;
                     int x = event.tfinger.x * screen_width, y = event.tfinger.y * screen_height;
-                    SDL_Log("g_camera.x: %d, x: %d\n", g_camera.x, x);
-                    SDL_Log("SDL_FINGERDOWN  gm_x * CELL_SIZE: %d <= x - g_camera.x: %d <= gm_x * CELL_SIZE + anthill_texture.width: %d\n",
-                            anthill.gm_x * CELL_SIZE, x - g_camera.x, anthill.gm_x * CELL_SIZE + g_anthill_texture.width);
-                    if (anthill.gm_x * CELL_SIZE <= x + g_camera.x && x + g_camera.x <= anthill.gm_x * CELL_SIZE + g_anthill_texture.width &&
-                        anthill.gm_y * CELL_SIZE <= y + g_camera.y && y + g_camera.y <= anthill.gm_y * CELL_SIZE + g_anthill_texture.height) {
-                        SDL_Log("pressed on anthill\n");
-
+                    if (anthill.x <= x + g_camera.x && x + g_camera.x <= anthill.x + g_anthill_texture.width &&
+                        anthill.y * CELL_SIZE <= y + g_camera.y && y + g_camera.y <= anthill.y + g_anthill_texture.height) {
+                        //tapped on the anthill
                         if (player.in_anthill && player.food_count >= g_levels_table[anthill.level] && anthill.level < MAX_LEVEL) {
                             player.food_count -= g_levels_table[anthill.level];
                             update_food_count_texture(player.food_count, g_levels_table[anthill.level + 1]);
                             for (int i = 0; i < g_levels_table[anthill.level] / 2; i++)
                                 if (create_npc(anthill.gm_x, anthill.gm_y) == NULL)
-                                    fprintf(stderr, "Warning: could not create NPC ant\n");
+                                    SDL_Log("Warning: could not create NPC ant\n");
                             update_anthill_level_texture(++anthill.level);
                             if (anthill.level == MAX_LEVEL) {
                                 goto win;
@@ -724,11 +719,9 @@ int main(int argc, char *argv[]) {
                     }
                     else if (event.tfinger.x <= 1.0 / 3) {
                         player.turn_vel = -ANT_TURN_DEGREES;
-                        SDL_Log("left\n");
                     }
 
                     else if (event.tfinger.x >= 2.0 / 3) {
-                        SDL_Log("right\n");
                         player.turn_vel = ANT_TURN_DEGREES;
                     }
                     else if (event.tfinger.y <= 0.5)
@@ -758,7 +751,7 @@ int main(int argc, char *argv[]) {
                     //cheats for developers
                     case SDL_SCANCODE_LCTRL:
                         if (create_npc(anthill.gm_x, anthill.gm_y) == NULL)
-                            fprintf(stderr, "Warning: Could not allocate memory for an npc ant");
+                            SDL_Log("Warning: Could not allocate memory for an npc ant");
                         break;
                     case SDL_SCANCODE_RCTRL:
                         player.food_count++;
@@ -772,7 +765,7 @@ int main(int argc, char *argv[]) {
                             update_food_count_texture(player.food_count, g_levels_table[anthill.level + 1]);
                             for (int i = 0; i < g_levels_table[anthill.level] / 2; i++)
                                 if (create_npc(anthill.gm_x, anthill.gm_y) == NULL)
-                                    fprintf(stderr, "Warning: could not create NPC ant\n");
+                                    SDL_Log("Warning: could not create NPC ant\n");
                             update_anthill_level_texture(++anthill.level);
                             if (anthill.level == MAX_LEVEL) {
                                 goto win;
@@ -818,16 +811,12 @@ int main(int argc, char *argv[]) {
 #endif
                 case SDL_WINDOWEVENT:
                       if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
-                        screen_width = event.window.data1;
-                        screen_height = event.window.data2;
-                        g_camera.w = screen_width;
-                        g_camera.h = screen_height;
-                      }
+                        g_camera.w = screen_width = event.window.data1;
+                        g_camera.h = screen_height = event.window.data2;
 #if ANDROID_BUILD
-                      if (event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) {
-                          SDL_SetWindowFullscreen(g_window, SDL_WINDOW_FULLSCREEN);
-                      }
+                        SDL_SetWindowFullscreen(g_window, SDL_WINDOW_FULLSCREEN);
 #endif
+                      }
                     break;
                 case SDL_QUIT:
                     quit = true;
@@ -856,14 +845,16 @@ win:;
                     case SDL_QUIT:
                         quit = true;
                         break;
-                    case SDL_WINDOWEVENT:
-                        if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
-                            screen_width = event.window.data1;
-                            screen_height = event.window.data2;
-                            g_camera.w = screen_width;
-                            g_camera.h = screen_height;
-                          }
-                        break;
+                //partially copypasted from main event loop which is a problem, will find a fix later
+                case SDL_WINDOWEVENT:
+                      if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
+                        g_camera.w = screen_width = event.window.data1;
+                        g_camera.h = screen_height = event.window.data2;
+#if ANDROID_BUILD
+                        SDL_SetWindowFullscreen(g_window, SDL_WINDOW_FULLSCREEN);
+#endif
+                      }
+                    break;
                 }
             }
 
@@ -894,10 +885,6 @@ bool push_ant(Ant *ant) {
 
     }
     return true;
-}
-
-int randint(int from, int to) {
-    return from + rand() % (to - from + 1);
 }
 
 bool check_collision(SDL_Rect a, SDL_Rect b) {
