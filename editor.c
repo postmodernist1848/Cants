@@ -1,3 +1,12 @@
+/* Cants map editor.
+ * A cants map is a binary format that consists of:
+ * four bytes for width (int)
+ * four bytes for height (int)
+ * binary data of the map (width * height bytes, because a single tile is an int8_t)
+ */
+
+
+
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_ttf.h>
@@ -178,17 +187,17 @@ bool check_collision(SDL_Rect a, SDL_Rect b) {
 }
 
 bool write_map_to_file(char *path) {
-    FILE *map_file = fopen(path, "w");
+    SDL_RWops* map_file = SDL_RWFromFile(path, "wb");
     if (map_file == NULL) {
         fprintf(stderr, "Failed to open %s for writing: %s\n", path, strerror(errno));
         return false;
     }
+    SDL_RWwrite(map_file, &g_map.width,  sizeof(int), 1);
+    SDL_RWwrite(map_file, &g_map.height, sizeof(int), 1);
     for (int i = 0; i < g_map.height; i++) {
-        for (int j = 0; j < g_map.width; j++) {
-            fprintf(map_file, " %d", g_map.matrix[i][j]);
-        }
-        putc('\n', map_file);
+        SDL_RWwrite(map_file, g_map.matrix[i], sizeof(int8_t), g_map.width);
     }
+    SDL_RWclose(map_file);
     return true;
 }
 
@@ -275,7 +284,7 @@ void edit(char *map_path) {
                             break;
                         case SDL_SCANCODE_S:
                             if (event.key.keysym.mod & KMOD_LCTRL)
-                                if (write_map_to_file(map_path))
+                                if (write_map_to_file("map.txt"))
                                     printf("Successfully saved the map!\n");
                             break;
                     }
@@ -366,19 +375,18 @@ bool isnumber(char *str) {
 }
 
 bool create_map(char *name, int width, int height) {
-    FILE *map = fopen(name, "w");
-    if (map == NULL) {
-        fprintf(stderr, "Failed to open %s for writing: %s\n", name, strerror(errno));
-        return false;
-    }
+    int8_t *map[height];
+    int8_t zeros[width];
+    memset(zeros, 0, width * sizeof(int8_t));
+
     for (int i = 0; i < height; i++) {
-        for (int j = 0; j < width - 1; j++) {
-            putc('0', map); putc(' ', map);
-        }
-        putc('0', map); putc('\n', map);
+        //get a pointer to the first element
+        map[i] = &zeros[0];
     }
-    fclose(map);
-    return true;
+    g_map.matrix = map;
+    g_map.width = width;
+    g_map.height = height;
+    return write_map_to_file(name);
 }
 
 int main (int argc, char *argv[]) {
@@ -426,6 +434,7 @@ int main (int argc, char *argv[]) {
             printf("Height cannot be 0!\n");
             exit(1);
         }
+        create_map(*argv, width, height);
         printf("%dx%d map %s created successfully\n", width, height, *argv);
         
     }

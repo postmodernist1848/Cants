@@ -567,7 +567,6 @@ void render_game_objects(Player *player, Anthill *anthill) {
         }
 
         render_player_anim(player);
-        set_camera(player);
 
         //render ants which are on the screen
         for (size_t i = 0; i < g_ant_sp; i++) {
@@ -652,7 +651,7 @@ int main(int argc, char *argv[]) {
     if (argc > 1)
         map_path = argv[1];
     else
-        map_path = "assets/map.txt";
+        map_path = ASSETS_PREFIX"map.txt";
     SDL_Log("Loading map...\n");
     if (!load_map(map_path)) {
         SDL_Log("Could not load map\n");
@@ -684,7 +683,6 @@ int main(int argc, char *argv[]) {
     player.ant->scale=1.59;
     player.width = g_ant_texture.width / ANT_FRAMES_NUM;
     player.height = g_ant_texture.height;
-    set_camera(&player);
 
     while(g_world_food_count < UNIVERSAL_FOOD_COUNT) {
         create_food();
@@ -694,14 +692,15 @@ int main(int argc, char *argv[]) {
     SDL_AddTimer(ANT_MS_TO_MOVE, move_player, (void *) &player);
 
     while(!quit) {
-
+        set_camera(&player);
         while(SDL_PollEvent(&event) != 0) {
             switch (event.type) {
 #if ANDROID_BUILD
                 case SDL_FINGERDOWN:;
                     int x = event.tfinger.x * screen_width, y = event.tfinger.y * screen_height;
+
                     if (anthill.x <= x + g_camera.x && x + g_camera.x <= anthill.x + g_anthill_texture.width &&
-                        anthill.y * CELL_SIZE <= y + g_camera.y && y + g_camera.y <= anthill.y + g_anthill_texture.height) {
+                        anthill.y <= y + g_camera.y && y + g_camera.y <= anthill.y + g_anthill_texture.height) {
                         //tapped on the anthill
                         if (player.in_anthill && player.food_count >= g_levels_table[anthill.level] && anthill.level < MAX_LEVEL) {
                             player.food_count -= g_levels_table[anthill.level];
