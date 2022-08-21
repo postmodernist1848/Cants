@@ -38,6 +38,7 @@ editor <file> | create <filename> <width> <height> | info <file>
 Use the first variant to open a map for editing.
 You can scroll when middle mouse button is pressed, choose what type of a tile you want with number keys and
 paint with it with left mouse button or delete a tile with right mouse button.
+Use arrow keys to translate the entire map (the map rotatates on the other side)
 
 Info command gives a quick summary on the size and tile counts for the map.
 
