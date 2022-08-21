@@ -378,9 +378,7 @@ void remove_food(int8_t *cell) {
 }
 
 Uint32 move_player(Uint32 interval, void *player_void) {
-    //TODO: figure out whether the compiler optimizes out multiplication by 0
     Player *player = (Player *) player_void;
-    float dx=0, dy=0;
 
     if (player->vel >= 0)
         player->ant->angle += player->turn_vel;
@@ -388,8 +386,9 @@ Uint32 move_player(Uint32 interval, void *player_void) {
         player->ant->angle -= player->turn_vel;
 
     if (player->vel != 0) {
-        dx = cosf((player->ant->angle - 90) * M_PI / 180.0);
-        dy = sinf((player->ant->angle - 90) * M_PI / 180.0);
+                                        //convert angle to radians
+        float dx = cosf((player->ant->angle - 90) * M_PI / 180.0);
+        float dy = sinf((player->ant->angle - 90) * M_PI / 180.0);
         player->ant->x += player->vel * dx;
         player->ant->y += player->vel * dy;
         //collision checks
@@ -520,23 +519,20 @@ void create_food(void) {
 
 //coordinates of the entrance (where the ants spawn)
 void init_anthill(Anthill *anthill) {
-    anthill->x = LEVEL_WIDTH / 2 - CELL_SIZE * 1;
-    anthill->y = LEVEL_HEIGHT / 2;
 
-    int gm_x = anthill->gm_x = anthill->x / CELL_SIZE + 1;
-    int gm_y = anthill->gm_y = anthill->y / CELL_SIZE;
-
-    g_map.matrix[gm_y][gm_x - 1] = MAP_ANTHILL;
-    g_map.matrix[gm_y][gm_x] = MAP_ANTHILL;
-    g_map.matrix[gm_y][gm_x + 1] = MAP_ANTHILL;
-
-    g_map.matrix[gm_y + 1][gm_x - 1] = MAP_ANTHILL;
-    g_map.matrix[gm_y + 1][gm_x] = MAP_ANTHILL;
-    g_map.matrix[gm_y + 1][gm_x + 1] = MAP_ANTHILL;
-
-    g_map.matrix[gm_y + 2][gm_x - 1] = MAP_ANTHILL;
-    g_map.matrix[gm_y + 2][gm_x] = MAP_ANTHILL;
-    g_map.matrix[gm_y + 2][gm_x + 1] = MAP_ANTHILL;
+    for (int i = 0; i < g_map.height; i++) {
+        for (int j = 0; j < g_map.width; j++) {
+            if (g_map.matrix[i][j] == MAP_ANTHILL) {
+                anthill->gm_x = j + 1;
+                anthill->gm_y = i;
+                anthill->x = (anthill->gm_x - 1) * CELL_SIZE;
+                anthill->y = (anthill->gm_y) * CELL_SIZE;
+                return;
+            }
+        }
+    }
+    fprintf(stderr, "The map does not contain an anthill\n");
+    exit(1);
 }
 
 
@@ -629,6 +625,7 @@ void toggle_fullscreen(void) {
 //!TODO: set the anthill pos in the map editor
 //TODO: better player anchor when determing collision
 //TODO: make npcs prioretise MAP_FOOD tiles when choosing direction
+// ^ probably reverse randomization of the movement (random tile -> angle instead of random angle -> tile)
 //TODO: create food on the screen only
 //TODO: show entire map after win-state achieved (introducing scaling also (maybe increase the scale for mobile))
 //TODO: tutorial
@@ -647,7 +644,7 @@ int main(int argc, char *argv[]) {
     else
         SDL_Log("Map %dx%d loaded successfully!\n", g_map.width, g_map.height);
 
-    Anthill anthill = {0};
+    Anthill anthill = {0, 0, -1, 0, 0};
     init_anthill(&anthill);
 
     init();
@@ -660,7 +657,7 @@ int main(int argc, char *argv[]) {
     SDL_Event event;
 
     Player player = {0};
-    player.ant = create_ant(LEVEL_WIDTH / 2, LEVEL_HEIGHT / 2);
+    player.ant = create_ant((anthill.gm_x + 0.5) * CELL_SIZE, anthill.gm_y * CELL_SIZE);
     if (player.ant == NULL) {
         SDL_Log("Error: could not allocate memory for player ant\n");
         exit(1);

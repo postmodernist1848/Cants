@@ -52,6 +52,7 @@ SDL_Window *g_window;
 SDL_Renderer *g_renderer;
 Texture g_background_texture;
 Texture g_leaf_texture;
+Texture g_anthill_texture;
 TTF_Font *g_font;
 Texture g_mode_texture;
 
@@ -61,6 +62,8 @@ SDL_Rect g_camera = {
     0,
     0
 };
+
+SDL_Rect g_anthill = {-1, 0, 3 * CELL_SIZE, 3 * CELL_SIZE};
 
 Texture load_texture(const char *path) {
 	//The final texture
@@ -162,16 +165,17 @@ void init(void) {
             "Could not create renderer");
     g_background_texture = load_texture("assets/grass500x500.png");
     g_leaf_texture = load_texture("assets/leaf.png");
+    g_anthill_texture = load_texture("assets/anthill.png");
     g_font = TTF_OpenFont("assets/OpenSans-Regular.ttf", 50);
     setmode(MAP_WALL);
 }
 
-void render_texture(Texture texture, int x, int y) {
+void render_texture(Texture texture, int x, int y, float scale) {
     SDL_Rect render_rect;
     render_rect.x = x;
     render_rect.y = y;
-    render_rect.h = texture.height;
-    render_rect.w = texture.width;
+    render_rect.h = texture.height * scale;
+    render_rect.w = texture.width * scale;
     SDL_RenderCopy(g_renderer, texture.texture_proper, NULL, &render_rect);
 }
 
@@ -192,10 +196,49 @@ bool write_map_to_file(char *path) {
     }
     SDL_RWwrite(map_file, &g_map.width,  sizeof g_map.width, 1);
     SDL_RWwrite(map_file, &g_map.height, sizeof g_map.height, 1);
+
+    int8_t buf[9];
+    int gm_x = 0, gm_y = 0;
+
+    if (g_anthill.x != -1) {
+        int gm_x = g_anthill.x / CELL_SIZE;
+        int gm_y = g_anthill.y / CELL_SIZE;
+        buf[0] = g_map.matrix[gm_y + 0][gm_x + 0];
+        buf[1] = g_map.matrix[gm_y + 1][gm_x + 0];
+        buf[2] = g_map.matrix[gm_y + 2][gm_x + 0];
+        buf[3] = g_map.matrix[gm_y + 0][gm_x + 1];
+        buf[4] = g_map.matrix[gm_y + 1][gm_x + 1];
+        buf[5] = g_map.matrix[gm_y + 2][gm_x + 1];
+        buf[6] = g_map.matrix[gm_y + 0][gm_x + 2];
+        buf[7] = g_map.matrix[gm_y + 1][gm_x + 2];
+        buf[8] = g_map.matrix[gm_y + 2][gm_x + 2];
+        g_map.matrix[gm_y + 0][gm_x + 0] = MAP_ANTHILL;
+        g_map.matrix[gm_y + 1][gm_x + 0] = MAP_ANTHILL;
+        g_map.matrix[gm_y + 2][gm_x + 0] = MAP_ANTHILL;
+        g_map.matrix[gm_y + 0][gm_x + 1] = MAP_ANTHILL;
+        g_map.matrix[gm_y + 1][gm_x + 1] = MAP_ANTHILL;
+        g_map.matrix[gm_y + 2][gm_x + 1] = MAP_ANTHILL;
+        g_map.matrix[gm_y + 0][gm_x + 2] = MAP_ANTHILL;
+        g_map.matrix[gm_y + 1][gm_x + 2] = MAP_ANTHILL;
+        g_map.matrix[gm_y + 2][gm_x + 2] = MAP_ANTHILL;
+    }
+
     for (int i = 0; i < g_map.height; i++) {
         SDL_RWwrite(map_file, g_map.matrix[i], sizeof(int8_t), g_map.width);
     }
     SDL_RWclose(map_file);
+
+    if (g_anthill.x != -1) {
+        g_map.matrix[gm_y + 0][gm_x + 0] = buf[0];
+        g_map.matrix[gm_y + 1][gm_x + 0] = buf[1];
+        g_map.matrix[gm_y + 2][gm_x + 0] = buf[2];
+        g_map.matrix[gm_y + 0][gm_x + 1] = buf[3];
+        g_map.matrix[gm_y + 1][gm_x + 1] = buf[4];
+        g_map.matrix[gm_y + 2][gm_x + 1] = buf[5];
+        g_map.matrix[gm_y + 0][gm_x + 2] = buf[6];
+        g_map.matrix[gm_y + 1][gm_x + 2] = buf[7];
+        g_map.matrix[gm_y + 2][gm_x + 2] = buf[8];
+    }
     return true;
 }
 
@@ -236,6 +279,7 @@ void translate(int x, int y) {
     }
 }
 
+
 void edit(char *map_path) {
     printf("Loading map...\n");
     if (!load_map(map_path)) {
@@ -254,6 +298,38 @@ void edit(char *map_path) {
     bool lmb_pressed = false;
     bool rmb_pressed = false;
 
+    //check if the anthill is present on the map
+    for (int i = 0; i < g_map.height; i++) {
+        for (int j = 0; j < g_map.width; j++) {
+            if (g_map.matrix[i][j] == MAP_ANTHILL) {
+                if (g_map.matrix[i + 1][j + 0] == MAP_ANTHILL &&
+                    g_map.matrix[i + 2][j + 0] == MAP_ANTHILL &&
+                    g_map.matrix[i + 0][j + 1] == MAP_ANTHILL &&
+                    g_map.matrix[i + 1][j + 1] == MAP_ANTHILL &&
+                    g_map.matrix[i + 2][j + 1] == MAP_ANTHILL &&
+                    g_map.matrix[i + 0][j + 2] == MAP_ANTHILL &&
+                    g_map.matrix[i + 1][j + 2] == MAP_ANTHILL &&
+                    g_map.matrix[i + 2][j + 2] == MAP_ANTHILL) {
+                        g_anthill.y = i * CELL_SIZE;
+                        g_anthill.x = j * CELL_SIZE;
+                        g_map.matrix[i + 0][j + 0] = MAP_FREE;
+                        g_map.matrix[i + 1][j + 0] = MAP_FREE;
+                        g_map.matrix[i + 2][j + 0] = MAP_FREE;
+                        g_map.matrix[i + 0][j + 1] = MAP_FREE;
+                        g_map.matrix[i + 1][j + 1] = MAP_FREE;
+                        g_map.matrix[i + 2][j + 1] = MAP_FREE;
+                        g_map.matrix[i + 0][j + 2] = MAP_FREE;
+                        g_map.matrix[i + 1][j + 2] = MAP_FREE;
+                        g_map.matrix[i + 2][j + 2] = MAP_FREE;
+            }
+                else {
+                    fprintf(stderr, "Error: Something is wrong with the anthill in the map.");
+                    exit(1);
+                }
+            }
+        }
+    }
+
     SDL_Event event;
     while (!quit) {
         while(SDL_PollEvent(&event) != 0) {
@@ -266,8 +342,18 @@ void edit(char *map_path) {
                     else if (event.button.button == SDL_BUTTON_LEFT) {
                         lmb_pressed = true;
                         int x = event.button.x + g_camera.x, y = event.button.y + g_camera.y; 
-                        if (x > 0 && x < level_width && y > 0 && y < level_height)
-                            g_map.matrix[y / CELL_SIZE][x / CELL_SIZE] = cur_mode;
+                        if (x > 0 && x < level_width && y > 0 && y < level_height) {
+                            if (cur_mode == MAP_ANTHILL) {
+                                if (x + 2 * CELL_SIZE < g_map.width * CELL_SIZE && y + 2 * CELL_SIZE < g_map.height * CELL_SIZE) {
+                                g_anthill.x = x - x % CELL_SIZE;
+                                g_anthill.y = y - y % CELL_SIZE;
+                                }
+                            }
+                            else {
+                                g_map.matrix[y / CELL_SIZE][x / CELL_SIZE] = cur_mode;
+                            }
+                        }
+                            
                     }
                     else if (event.button.button == SDL_BUTTON_RIGHT) {
                         rmb_pressed = true;
@@ -287,7 +373,7 @@ void edit(char *map_path) {
                         g_camera.x += event.motion.xrel;
                         g_camera.y += event.motion.yrel;
                     }
-                    else if (lmb_pressed) {
+                    else if (lmb_pressed && cur_mode != MAP_ANTHILL) {
                         int x = event.motion.x + g_camera.x, y = event.motion.y + g_camera.y; 
                         if (x > 0 && x < level_width && y > 0 && y < level_height)
                             g_map.matrix[y / CELL_SIZE][x / CELL_SIZE] = cur_mode;
@@ -311,6 +397,9 @@ void edit(char *map_path) {
                             break;
                         case SDL_SCANCODE_4:
                             setmode(MAP_FOOD);
+                            break;
+                        case SDL_SCANCODE_5:
+                            setmode(MAP_ANTHILL);
                             break;
                         case SDL_SCANCODE_S:
                             if (event.key.keysym.mod & KMOD_LCTRL)
@@ -352,7 +441,7 @@ void edit(char *map_path) {
                     g_background_texture.height
                 };
                 if (check_collision(coords, g_camera)) {
-                    render_texture(g_background_texture, x - g_camera.x, y - g_camera.y);
+                    render_texture(g_background_texture, x - g_camera.x, y - g_camera.y, 1);
                 }
             }
         }
@@ -370,7 +459,7 @@ void edit(char *map_path) {
                     SDL_RenderFillRect(g_renderer, &coords);
                 }
                 else if (g_map.matrix[i][j] == MAP_FOOD) {
-                    render_texture(g_leaf_texture, j * CELL_SIZE - g_camera.x, i * CELL_SIZE - g_camera.y);
+                    render_texture(g_leaf_texture, j * CELL_SIZE - g_camera.x, i * CELL_SIZE - g_camera.y, 1);
                 }
                 else if (g_map.matrix[i][j] == MAP_ENCLOSED) {
                     SDL_Rect coords = {
@@ -383,11 +472,26 @@ void edit(char *map_path) {
                     SDL_RenderFillRect(g_renderer, &coords);
                     SDL_SetRenderDrawColor(g_renderer, 0x00, 0x90, 0x00, 0xFF);
                 }
+                else if (g_map.matrix[i][j] == MAP_ENCLOSED) {
+                    SDL_Rect coords = {
+                        j * CELL_SIZE - g_camera.x,
+                        i * CELL_SIZE - g_camera.y,
+                        CELL_SIZE,
+                        CELL_SIZE
+                    };
+                    SDL_SetRenderDrawColor(g_renderer, 0x96, 0x4B, 0x00, 0xFF);
+                    SDL_RenderFillRect(g_renderer, &coords);
+                    SDL_SetRenderDrawColor(g_renderer, 0x00, 0x90, 0x00, 0xFF);
+                }
             }
         }
 
+        if (g_anthill.x != -1) {
+            render_texture(g_anthill_texture, g_anthill.x - g_camera.x, g_anthill.y - g_camera.y, (float) g_anthill.w / g_anthill_texture.width);
+        }
+
         //drawing tile
-        render_texture(g_mode_texture, 0, 0);
+        render_texture(g_mode_texture, 0, 0, 1);
 
         SDL_RenderPresent(g_renderer);
     }

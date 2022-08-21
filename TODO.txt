@@ -6,4 +6,4 @@
     counterpoint: when we scanned entire map we could leave off the tiles in the camera in the for loop thought that's slow anyway
     indexing in an array (stack with random access) seems like the best solution 
 
-2. Add Fullscreen to Android version and disable vertical mode (?)
+2. Create a special kind of leaf that gives the player 1-10 (random) food
