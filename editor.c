@@ -1,11 +1,9 @@
 /* Cants map editor.
  * A cants map is a binary format that consists of:
- * four bytes for width (int)
- * four bytes for height (int)
+ * a byte for height (uint8)
+ * a byte for width (uint8)
  * binary data of the map (width * height bytes, because a single tile is an int8_t)
  */
-
-
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
@@ -160,7 +158,7 @@ void init(void) {
     scp((g_window = SDL_CreateWindow("Cants map editor", 0, 0, screen_width, screen_height, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE)),
             "Could not create window");
     //Create renderer for window
-    scp((g_renderer = SDL_CreateRenderer(g_window, -1, SDL_RENDERER_ACCELERATED)),
+    scp((g_renderer = SDL_CreateRenderer(g_window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC)),
             "Could not create renderer");
     g_background_texture = load_texture("assets/grass500x500.png");
     g_leaf_texture = load_texture("assets/leaf.png");
@@ -192,8 +190,8 @@ bool write_map_to_file(char *path) {
         fprintf(stderr, "Failed to open %s for writing: %s\n", path, strerror(errno));
         return false;
     }
-    SDL_RWwrite(map_file, &g_map.width,  sizeof(int), 1);
-    SDL_RWwrite(map_file, &g_map.height, sizeof(int), 1);
+    SDL_RWwrite(map_file, &g_map.width,  sizeof g_map.width, 1);
+    SDL_RWwrite(map_file, &g_map.height, sizeof g_map.height, 1);
     for (int i = 0; i < g_map.height; i++) {
         SDL_RWwrite(map_file, g_map.matrix[i], sizeof(int8_t), g_map.width);
     }
@@ -204,6 +202,38 @@ bool write_map_to_file(char *path) {
 void usage(void) {
     printf("Usage: editor <file> | create <filename> <width> <height> | info <file>\nSee README for details\n");
     exit(0);
+}
+
+void translate(int x, int y) {
+    if (y > 0) {
+        int8_t *buf[y];
+        memcpy(buf, g_map.matrix, y * sizeof(int8_t *));
+        memmove(g_map.matrix, g_map.matrix + y, (g_map.height - y) * sizeof(int8_t *));
+        memcpy(g_map.matrix + g_map.height - y, buf, y * sizeof(int8_t *));
+    }
+    else if (y < 0) {
+        y = -y;
+        int8_t *buf[y];
+        memcpy(buf, g_map.matrix + g_map.height - y, y * sizeof(int8_t *));
+        memmove(g_map.matrix + y, g_map.matrix, (g_map.height - y) * sizeof(int8_t *));
+        memcpy(g_map.matrix, buf, y * sizeof(int8_t *));
+    }
+    if (x > 0)
+        for (int i = 0; i < g_map.width; i++) {
+            int8_t buf[x];
+            memcpy(buf, g_map.matrix[i] + g_map.width - x, x * sizeof(int8_t));
+            memmove(g_map.matrix[i] + x, g_map.matrix[i], (g_map.width - x) * sizeof(int8_t));
+            memcpy(g_map.matrix[i], buf, x * sizeof(int8_t));
+        }
+    else if (x < 0) {
+        x = -x;
+        for (int i = 0; i < g_map.width; i++) {
+            int8_t buf[x];
+            memcpy(buf, g_map.matrix[i], x * sizeof(int8_t));
+            memmove(g_map.matrix[i], g_map.matrix[i] + x, (g_map.width - x) * sizeof(int8_t));
+            memcpy(g_map.matrix[i] + g_map.width - x, buf, x * sizeof(int8_t));
+        }
+    }
 }
 
 void edit(char *map_path) {
@@ -284,8 +314,20 @@ void edit(char *map_path) {
                             break;
                         case SDL_SCANCODE_S:
                             if (event.key.keysym.mod & KMOD_LCTRL)
-                                if (write_map_to_file("map.txt"))
+                                if (write_map_to_file(map_path))
                                     printf("Successfully saved the map!\n");
+                            break;
+                        case SDL_SCANCODE_UP:
+                            translate(0, 1);
+                            break;
+                        case SDL_SCANCODE_RIGHT:
+                            translate(1, 0);
+                            break;
+                        case SDL_SCANCODE_DOWN:
+                            translate(0, -1);
+                            break;
+                        case SDL_SCANCODE_LEFT:
+                            translate(-1, 0);
                             break;
                     }
                     break;
@@ -367,6 +409,7 @@ int *get_map_info() {
     return tile_counts;
 }
 
+
 bool isnumber(char *str) {
     while (*str) {
         if (!isdigit(*str++)) return false;
@@ -375,6 +418,10 @@ bool isnumber(char *str) {
 }
 
 bool create_map(char *name, int width, int height) {
+    if (width > 255 || height > 255) {
+        fprintf(stderr, "Width and height greater than 255 are not supported\n");
+        return false;
+    }
     int8_t *map[height];
     int8_t zeros[width];
     memset(zeros, 0, width * sizeof(int8_t));

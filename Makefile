@@ -25,7 +25,7 @@ package-linux: $(PACKAGE_OBJS)
 	$(CC) $(CFLAGS) -O3 $(SDL_LIBS) -c -o $@ $<
 
 editor: editor.c map.c
-	$(CC) $(CFLAGS) $(SDL_LIBS) -O3 -o $@ $^
+	$(CC) $(CFLAGS) $(SDL_LIBS) -ggdb -o $@ $^
 
 clean:
 	rm -rf *.o cants main *.exe editor

@@ -107,7 +107,6 @@ Texture g_ant_texture;
 Texture g_food_count_texture;
 Texture g_anthill_texture;
 Texture g_anthill_icon_texture;
-Texture g_upgrade_prompt_texture;
 Texture g_anthill_level_texture;
 TTF_Font *g_font;
 
@@ -264,7 +263,6 @@ void load_media() {
     g_food_count_texture = load_text_texture("0/10");
     g_anthill_texture = load_texture(ASSETS_PREFIX"anthill.png");
     g_anthill_icon_texture = load_texture(ASSETS_PREFIX"anthill_icon.png");
-    g_upgrade_prompt_texture = load_text_texture("Press Space to upgrade");
     g_anthill_level_texture = load_text_texture("1/10");
 }
 
@@ -628,7 +626,6 @@ void toggle_fullscreen(void) {
 
 //////////////// MAIN ///////////////////////////////////////////////////////////
 
-//!TODO: use SDL file reading to open the map file on Android
 //!TODO: set the anthill pos in the map editor
 //TODO: better player anchor when determing collision
 //TODO: make npcs prioretise MAP_FOOD tiles when choosing direction
@@ -637,21 +634,11 @@ void toggle_fullscreen(void) {
 //TODO: tutorial
 
 int main(int argc, char *argv[]) {
-#if ANDROID_BUILD
-    (void) argc;
-    (void) argv;
-    if (!load_map()) {
-        SDL_Log("Could not load map\n");
-        exit(1);
-    }
-    else
-        SDL_Log("Map %dx%d loaded successfully!\n", g_map.width, g_map.height);
-#else
     char *map_path;
     if (argc > 1)
         map_path = argv[1];
     else
-        map_path = ASSETS_PREFIX"map.txt";
+        map_path = ASSETS_PREFIX"map.bin";
     SDL_Log("Loading map...\n");
     if (!load_map(map_path)) {
         SDL_Log("Could not load map\n");
@@ -659,7 +646,6 @@ int main(int argc, char *argv[]) {
     }
     else
         SDL_Log("Map %dx%d loaded successfully!\n", g_map.width, g_map.height);
-#endif
 
     Anthill anthill = {0};
     init_anthill(&anthill);
