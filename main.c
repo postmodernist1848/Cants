@@ -33,15 +33,15 @@
 
 int screen_width = 1920;
 int screen_height = 1080;
-const int LEVEL_WIDTH = 3000;
-const int LEVEL_HEIGHT = 3000;
+int level_width = 3000;
+int level_height = 3000;
 const Uint32 ANT_ANIM_MS = 100;
 const Uint32 ANT_MS_TO_MOVE = 10;
 const int ANT_VEL_MAX = 2;
 const int ANT_TURN_DEGREES = 1;
 const int CELL_SIZE = 50;
 const int ANT_STEP_LEN = CELL_SIZE;
-const int UNIVERSAL_FOOD_COUNT = 40;
+const int TILES_PER_FOOD = 90;
 
 enum ANT_STATES {ANT_STATE_PREPARE, ANT_STATE_TURN, ANT_STATE_STEP};
 
@@ -359,11 +359,11 @@ void set_camera(Player *player) {
     if(g_camera.y < 0) {
         g_camera.y = 0;
     }
-    if(g_camera.x > LEVEL_WIDTH - g_camera.w) {
-        g_camera.x = LEVEL_WIDTH - g_camera.w;
+    if(g_camera.x > level_width - g_camera.w) {
+        g_camera.x = level_width - g_camera.w;
     }
-    if(g_camera.y > LEVEL_HEIGHT - g_camera.h) {
-        g_camera.y = LEVEL_HEIGHT - g_camera.h;
+    if(g_camera.y > level_height - g_camera.h) {
+        g_camera.y = level_height - g_camera.h;
     }
 }
 
@@ -546,8 +546,8 @@ void render_game_objects(Player *player, Anthill *anthill) {
         SDL_RenderClear(g_renderer);
 
         //render background texture tiles (only those that are on the screen)
-        for (int y = 0; y < LEVEL_HEIGHT; y += g_background_texture.height) {
-            for (int x = 0; x < LEVEL_WIDTH; x += g_background_texture.width) {
+        for (int y = 0; y < level_height; y += g_background_texture.height) {
+            for (int x = 0; x < level_width; x += g_background_texture.width) {
                 SDL_Rect coords = {
                     x,
                     y,
@@ -644,6 +644,10 @@ int main(int argc, char *argv[]) {
     else
         SDL_Log("Map %dx%d loaded successfully!\n", g_map.width, g_map.height);
 
+    
+    level_width = g_map.width * CELL_SIZE;
+    level_height = g_map.height * CELL_SIZE;
+
     Anthill anthill = {0, 0, -1, 0, 0};
     init_anthill(&anthill);
 
@@ -667,8 +671,11 @@ int main(int argc, char *argv[]) {
     player.width = g_ant_texture.width / ANT_FRAMES_NUM;
     player.height = g_ant_texture.height;
 
-    while(g_world_food_count < UNIVERSAL_FOOD_COUNT) {
-        create_food();
+    {
+        int universal_food_count = g_map.height * g_map.width / TILES_PER_FOOD;
+        while(g_world_food_count < universal_food_count) {
+            create_food();
+        }
     }
 
     //call move_player each ANT_MS_TO_MOVE sec

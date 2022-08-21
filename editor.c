@@ -243,11 +243,15 @@ bool write_map_to_file(char *path) {
 }
 
 void usage(void) {
-    printf("Usage: editor <file> | create <filename> <width> <height> | info <file>\nSee README for details\n");
+    printf("Usage: editor <file> | create <filename> <width> <height> | info <file> | translate <file> <x> <y> | resize <file> <dx> <dy>\nSee README for details\n");
     exit(0);
 }
 
 void translate(int x, int y) {
+    if (g_anthill.x != -1) {
+        g_anthill.x += x * CELL_SIZE;
+        g_anthill.y -= y * CELL_SIZE;
+    }
     if (y > 0) {
         int8_t *buf[y];
         memcpy(buf, g_map.matrix, y * sizeof(int8_t *));
@@ -262,7 +266,7 @@ void translate(int x, int y) {
         memcpy(g_map.matrix, buf, y * sizeof(int8_t *));
     }
     if (x > 0)
-        for (int i = 0; i < g_map.width; i++) {
+        for (int i = 0; i < g_map.height; i++) {
             int8_t buf[x];
             memcpy(buf, g_map.matrix[i] + g_map.width - x, x * sizeof(int8_t));
             memmove(g_map.matrix[i] + x, g_map.matrix[i], (g_map.width - x) * sizeof(int8_t));
@@ -270,7 +274,7 @@ void translate(int x, int y) {
         }
     else if (x < 0) {
         x = -x;
-        for (int i = 0; i < g_map.width; i++) {
+        for (int i = 0; i < g_map.height; i++) {
             int8_t buf[x];
             memcpy(buf, g_map.matrix[i], x * sizeof(int8_t));
             memmove(g_map.matrix[i], g_map.matrix[i] + x, (g_map.width - x) * sizeof(int8_t));
@@ -283,7 +287,7 @@ void translate(int x, int y) {
 void edit(char *map_path) {
     printf("Loading map...\n");
     if (!load_map(map_path)) {
-        fprintf(stderr, "Failed to load map\n");
+        fprintf(stderr, "Failed to load map '%s' for editing\n", map_path);
         exit(1);
     }
     else
@@ -540,6 +544,40 @@ bool create_map(char *name, int width, int height) {
     return write_map_to_file(name);
 }
 
+bool resize(int dx, int dy) {
+    int new_width = g_map.width + dx;
+    int new_height = g_map.height + dy;
+    if (new_height < g_map.height) {
+        for (int i = new_height; i < g_map.height; i++) {
+            free(g_map.matrix[i]);
+        }
+    }
+    for (int i = 0; i < ((new_height < g_map.height) ? new_height: g_map.height); i++) {
+        if ((g_map.matrix[i] = realloc(g_map.matrix[i], sizeof(int8_t) * new_width)) == NULL) {
+            fprintf(stderr, "realloc failed\n");
+            return false;
+        };
+        if (new_width > g_map.width) {
+            memset(g_map.matrix[i] + g_map.width, 0, dx);
+        }
+    }
+    if ((g_map.matrix = realloc(g_map.matrix, sizeof(int8_t *) * new_height)) == NULL) {
+            fprintf(stderr, "realloc failed\n");
+            return false;
+    }
+    if (new_height > g_map.height) {
+        for (int i = g_map.height; i < new_height; i++) {
+            if ((g_map.matrix[i] = calloc(new_width, sizeof(int8_t))) == NULL) {
+                    fprintf(stderr, "malloc failed\n");
+                    return false;
+            }
+        }
+    }
+    g_map.height = new_height;
+    g_map.width = new_width;
+    return true;
+}
+
 int main (int argc, char *argv[]) {
 
     if (argc == 1)
@@ -586,8 +624,41 @@ int main (int argc, char *argv[]) {
             exit(1);
         }
         create_map(*argv, width, height);
-        printf("%dx%d map %s created successfully\n", width, height, *argv);
+        printf("%dx%d map '%s' created successfully\n", width, height, *argv);
         
+    }
+    else if (strcmp("resize", *argv) == 0) {
+        if (*++argv == NULL || argv[1] == NULL || argv[2] == NULL)
+            usage();
+        int dx = atoi(argv[1]), dy = atoi(argv[2]);
+        if (!load_map(*argv)) {
+            fprintf(stderr, "Could not load '%s'", *argv);
+            exit(1);
+        };
+        if (!resize(dx, dy)) {
+            fprintf(stderr, "Could not resize '%s'", *argv);
+            exit(1);
+        }
+        if (!write_map_to_file(*argv)) {
+            fprintf(stderr, "Could not write the map to file %s", *argv);
+            exit(1);
+        }
+        printf("Map '%s' resized by %d %d\n", *argv, dx, dy);
+    }
+    else if (strcmp("translate", *argv) == 0) {
+        if (*++argv == NULL || argv[1] == NULL || argv[2] == NULL)
+            usage();
+        int x = atoi(argv[1]), y = atoi(argv[2]);
+        if (!load_map(*argv)) {
+            fprintf(stderr, "Could not load %s", *argv);
+            exit(1);
+        };
+        translate(x, y);
+        if (!write_map_to_file(*argv)) {
+            fprintf(stderr, "Could not write the map to file %s", *argv);
+            exit(1);
+        }
+        printf("Map '%s' translated by %d and %d successfully\n", *argv, x, y);
     }
     else if(strcmp("help", *argv) == 0 || strcmp("-help", *argv) == 0 || strcmp("--help", *argv) == 0) {
         usage();
