@@ -44,6 +44,9 @@ const int ANT_STEP_LEN = CELL_SIZE;
 const int TILES_PER_FOOD = 90;
 
 enum ANT_STATES {ANT_STATE_PREPARE, ANT_STATE_TURN, ANT_STATE_STEP};
+#if TUTORIAL
+enum TUTORIAL_STAGES {TUTORIAL_LEAVES, TUTORIAL_UPGRADE, TUTORIAL_TEN, TUTORIAL_DONE};
+#endif
 
 //Texture - an SDL_Texture with additional information
 typedef struct {
@@ -108,6 +111,10 @@ Texture g_food_count_texture;
 Texture g_anthill_texture;
 Texture g_anthill_icon_texture;
 Texture g_anthill_level_texture;
+Texture g_tutorial_prompt;
+#if TUTORIAL
+enum TUTORIAL_STAGES g_tutorial = TUTORIAL_LEAVES;
+#endif
 TTF_Font *g_font;
 
 int g_world_food_count;
@@ -264,6 +271,7 @@ void load_media() {
     g_anthill_texture = load_texture(ASSETS_PREFIX"anthill.png");
     g_anthill_icon_texture = load_texture(ASSETS_PREFIX"anthill_icon.png");
     g_anthill_level_texture = load_text_texture("1/10");
+    g_tutorial_prompt = load_text_texture("Use WASD to move around and collect leaves");
 }
 
 void closesdl()
@@ -317,12 +325,14 @@ void render_player_anim(Player *player) {
         player->ant->anim_time = SDL_GetTicks();
         player->ant->frame = (player->ant->frame + 1) % ANT_FRAMES_NUM;
     }
-    SDL_Rect render_rect;
-    render_rect.x = player->ant->x - g_camera.x - (float) g_ant_texture.width / ANT_FRAMES_NUM / 2;
-    render_rect.y = player->ant->y - g_camera.y - (float) g_ant_texture.height / 2;
-    render_rect.h = g_antframes[0].h * player->ant->scale;
-    render_rect.w = g_antframes[0].w * player->ant->scale;
+    SDL_Rect render_rect = {
+    player->ant->x - g_camera.x - g_ant_texture.width * player->ant->scale / ANT_FRAMES_NUM / 2,
+    player->ant->y - g_camera.y - g_ant_texture.height * player->ant->scale / 2,
+    g_antframes[0].h * player->ant->scale,
+    g_antframes[0].w * player->ant->scale,
+    };
     SDL_RenderCopyEx(g_renderer, g_ant_texture.texture_proper, &g_antframes[player->ant->frame], &render_rect, player->ant->angle, NULL, SDL_FLIP_NONE);
+
 }
 
 void render_ant_anim(Ant *ant) {
@@ -331,8 +341,8 @@ void render_ant_anim(Ant *ant) {
         ant->frame = (ant->frame + 1) % ANT_FRAMES_NUM;
     }
     SDL_Rect render_rect;
-    render_rect.x = ant->x - g_camera.x - (float) g_ant_texture.width / ANT_FRAMES_NUM / 2;
-    render_rect.y = ant->y - g_camera.y - (float) g_ant_texture.height / 2;
+    render_rect.x = ant->x - g_camera.x - g_ant_texture.width * ant->scale / ANT_FRAMES_NUM / 2;
+    render_rect.y = ant->y - g_camera.y - g_ant_texture.height * ant->scale / 2;
     render_rect.h = g_antframes[0].h * ant->scale;
     render_rect.w = g_antframes[0].w * ant->scale;
     SDL_RenderCopyEx(g_renderer, g_ant_texture.texture_proper, &g_antframes[ant->frame], &render_rect, ant->angle, NULL, SDL_FLIP_NONE);
@@ -412,6 +422,7 @@ Uint32 move_player(Uint32 interval, void *player_void) {
         }
     }
 
+
     return interval;
 }
 
@@ -430,25 +441,43 @@ void update_anthill_level_texture(int level) {
 
 Uint32 move_npc(Uint32 interval, void *npc_void) {
 
-    int target_rotation;
     Npc *npc = (Npc *) npc_void;
     switch (npc->state) {
-        case ANT_STATE_PREPARE:
-            target_rotation = rand() % 5 * 45;
-            npc->cw = rand() % 2 * 2 - 1;
-            npc->target_angle = emod(npc->ant->angle + target_rotation * npc->cw, 360);
+        case ANT_STATE_PREPARE:;
+
+            Point target_cell = {-1, -1};
+
+            for (int i = 0; i < 8; i++) {
+                int gm_x = npc->gm_x + g_ant_move_table[i].x;
+                int gm_y = npc->gm_y + g_ant_move_table[i].y;
+                if (g_map.matrix[gm_y][gm_x] == MAP_FOOD) {
+                    target_cell.x = gm_x;
+                    target_cell.y = gm_y;
+                    npc->target_angle = i * 45;
+                }
+            }
+            if (target_cell.x == -1) {
+                //no leaf, choose random cell
+                do {
+                int n = rand() % 8;
+                Point random_offset = g_ant_move_table[n];
+                npc->target_angle = n * 45;
+                target_cell.x = npc->gm_x + random_offset.x;
+                target_cell.y = npc->gm_y + random_offset.y;
+                } 
+                while (g_map.matrix[target_cell.y][target_cell.x] == MAP_WALL || g_map.matrix[target_cell.y][target_cell.x] == MAP_ANTHILL);
+            }
+            npc->gm_x = target_cell.x;
+            npc->gm_y = target_cell.y;
             npc->steps_done = 0;
 
-            //next game cell
-            int gm_x_next = npc->gm_x + g_ant_move_table[npc->target_angle / 45].x;
-            int gm_y_next = npc->gm_y + g_ant_move_table[npc->target_angle / 45].y;
+            if ((npc->ant->angle > npc->target_angle && npc->ant->angle - npc->target_angle > 180) ||
+                    (npc->target_angle > npc->ant->angle && npc->target_angle - npc->ant->angle < 180)) npc->cw = 1;
+            else npc->cw = -1;
+
+            npc->state = ANT_STATE_TURN;
 
             //TODO: may segfault on boundary of the map
-            if (g_map.matrix[gm_y_next][gm_x_next] != MAP_WALL && g_map.matrix[gm_y_next][gm_x_next] != MAP_ANTHILL) {
-                npc->gm_x = gm_x_next;
-                npc->gm_y = gm_y_next;
-                npc->state = ANT_STATE_TURN;
-            }
             break;
 
         case ANT_STATE_TURN:
@@ -512,7 +541,17 @@ Npc *create_npc(int gm_x, int gm_y) {
 
 //TODO:create food outside the camera only
 void create_food(void) {
-    Point point = find_random_free_spot_on_a_map();
+    SDL_Rect leaf_rect = { 
+        .w = g_leaf_texture.width,
+        .h = g_leaf_texture.height
+    };
+    Point point;
+    do {
+    point = find_random_free_spot_on_a_map();
+    leaf_rect.x = point.x * CELL_SIZE;
+    leaf_rect.y = point.y * CELL_SIZE;
+    } while (check_collision(leaf_rect, g_camera));
+
     g_map.matrix[point.y][point.x] = MAP_FOOD;
     g_world_food_count++;
 }
@@ -531,7 +570,7 @@ void init_anthill(Anthill *anthill) {
             }
         }
     }
-    fprintf(stderr, "The map does not contain an anthill\n");
+    SDL_Log("The map does not contain an anthill\n");
     exit(1);
 }
 
@@ -611,6 +650,38 @@ void render_game_objects(Player *player, Anthill *anthill) {
         render_texture(g_anthill_icon_texture, screen_width * 4 / 5, screen_height * 34 / 35 - g_anthill_icon_texture.height / 2);
         render_texture(g_anthill_level_texture, screen_width * 4 / 5 + g_anthill_icon_texture.width, screen_height * 34 / 35 - g_food_count_texture.height / 2 - 5);
 
+
+#if TUTORIAL
+        static int last_food_count;
+        if (g_tutorial != TUTORIAL_DONE) {
+            render_texture(g_tutorial_prompt, screen_width / 2 - g_tutorial_prompt.width / 2, 0);
+            switch (g_tutorial) {
+                case TUTORIAL_LEAVES:
+                    if (player->food_count >= 10) {
+                        g_tutorial++;
+                        SDL_DestroyTexture(g_tutorial_prompt.texture_proper);
+                        g_tutorial_prompt = load_text_texture("Enter your anthill and press Space to upgrade");
+                    }
+                    break;
+                case TUTORIAL_UPGRADE:
+                    if (anthill->level > 0) {
+                        g_tutorial++;
+                        SDL_DestroyTexture(g_tutorial_prompt.texture_proper);
+                        g_tutorial_prompt = load_text_texture("Now reach level 10!");
+                        last_food_count = player->food_count;
+                    };
+                    break;
+                case TUTORIAL_TEN:
+                    if (player->food_count > last_food_count) {
+                        g_tutorial++;
+                        SDL_DestroyTexture(g_tutorial_prompt.texture_proper);
+                        g_tutorial_prompt.texture_proper = NULL;
+                    }
+                    break;
+            }
+        }
+#endif
+        
 }
 
 void toggle_fullscreen(void) {
@@ -622,11 +693,6 @@ void toggle_fullscreen(void) {
 
 //////////////// MAIN ///////////////////////////////////////////////////////////
 
-//!TODO: set the anthill pos in the map editor
-//TODO: better player anchor when determing collision
-//TODO: make npcs prioretise MAP_FOOD tiles when choosing direction
-// ^ probably reverse randomization of the movement (random tile -> angle instead of random angle -> tile)
-//TODO: create food on the screen only
 //TODO: show entire map after win-state achieved (introducing scaling also (maybe increase the scale for mobile))
 //TODO: tutorial
 
@@ -819,6 +885,7 @@ int main(int argc, char *argv[]) {
             }
         }
         render_game_objects(&player, &anthill);
+
         SDL_RenderPresent(g_renderer);
     }
 

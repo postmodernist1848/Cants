@@ -11,6 +11,8 @@
 #include <stdio.h>
 #include "map.h"
 #include <errno.h>
+#include <ctype.h>
+#include <string.h>
 
 #define scp(pointer, message) {                                               \
     if (pointer == NULL) {                                                    \

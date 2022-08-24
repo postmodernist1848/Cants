@@ -32,8 +32,8 @@ clean:
 
 #crosscompilation from Linux to Windows or native compilation requires headers and libs copied to the following dirs
 CROSS_CC=x86_64-w64-mingw32-gcc
-CROSS_INCLUDE_DIR=-Iwin64/mingw_dev_lib/include
-CROSS_LIB_DIR=-Lwin64/mingw_dev_lib/lib
+CROSS_INCLUDE_DIR=-Ipackage/win64/mingw_dev_lib/include
+CROSS_LIB_DIR=-Lpackage/win64/mingw_dev_lib/lib
 CROSS_LIBS=-lmingw32 -lSDL2main -lSDL2 -lSDL2_image -lSDL2_ttf
 CROSS_CFLAGS=$(CFLAGS) -Wl,-subsystem,windows -m64 -DDEBUGMODE=0 -O3 #-lmingw32 #not sure if this is needed
 WIN_OBJS=main-win64.o map-win64.o
@@ -47,6 +47,9 @@ native-win64: $(WIN_OBJS)
 
 cross: $(CROSS_OBJS)
 	$(CROSS_CC) $(CROSS_OBJS) $(CROSS_INCLUDE_DIR) $(CROSS_LIB_DIR) $(CROSS_CFLAGS) $(CROSS_LIBS) -o cants.exe
+
+editor_cross: editor.c map.c
+	$(CROSS_CC) editor.c map.c $(CROSS_INCLUDE_DIR) $(CROSS_LIB_DIR) $(CROSS_CFLAGS) $(CROSS_LIBS) -o editor.exe
 
 %-win64-cross.o: %.c
 	$(CROSS_CC) $(CROSS_INCLUDE_DIR) $(CROSS_LIB_DIR) $(CROSS_CFLAGS) $(CROSS_LIBS) -c -o $@ $<

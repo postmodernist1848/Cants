@@ -10,4 +10,8 @@
 #define ANDROID_BUILD 0
 #endif
 
+#ifndef TUTORIAL
+#define TUTORIAL 1
+#endif
+
 #endif
