@@ -204,8 +204,8 @@ bool write_map_to_file(char *path) {
     int gm_x = 0, gm_y = 0;
 
     if (g_anthill.x != -1) {
-        int gm_x = g_anthill.x / CELL_SIZE;
-        int gm_y = g_anthill.y / CELL_SIZE;
+        gm_x = g_anthill.x / CELL_SIZE;
+        gm_y = g_anthill.y / CELL_SIZE;
         buf[0] = g_map.matrix[gm_y + 0][gm_x + 0];
         buf[1] = g_map.matrix[gm_y + 1][gm_x + 0];
         buf[2] = g_map.matrix[gm_y + 2][gm_x + 0];
@@ -329,6 +329,7 @@ void edit(char *map_path) {
                         g_map.matrix[i + 0][j + 2] = MAP_FREE;
                         g_map.matrix[i + 1][j + 2] = MAP_FREE;
                         g_map.matrix[i + 2][j + 2] = MAP_FREE;
+                        goto out;
             }
                 else {
                     fprintf(stderr, "Error: Something is wrong with the anthill in the map.");
@@ -337,6 +338,7 @@ void edit(char *map_path) {
             }
         }
     }
+    out:;
 
     SDL_Event event;
     while (!quit) {
@@ -348,6 +350,8 @@ void edit(char *map_path) {
                 case SDL_MOUSEBUTTONDOWN:
                     if (event.button.button == SDL_BUTTON_MIDDLE) {
                         mmb_pressed = true;
+                        int x = event.button.x + g_camera.x, y = event.button.y + g_camera.y; 
+                        printf("%d, %d was pressed\n", x / CELL_SIZE, y / CELL_SIZE);
                     }                                 
                     else if (event.button.button == SDL_BUTTON_LEFT) {
                         lmb_pressed = true;
@@ -420,14 +424,17 @@ void edit(char *map_path) {
                                 if (write_map_to_file(map_path))
                                     printf("Successfully saved the map!\n");
                             break;
-                        case SDL_SCANCODE_F1:
-                            if (world_scale == 1) {
-                                world_scale = (float) g_map.width * CELL_SIZE / screen_width;
-                                CELL_SIZE *= world_scale;
+#define WORLD_SCALE_INC 0.1f
+                        case SDL_SCANCODE_KP_PLUS:
+                            if (world_scale < 3) {
+                                world_scale += WORLD_SCALE_INC;
+                                CELL_SIZE = INIT_CELL_SIZE * world_scale;
                             }
-                            else {
-                                world_scale = 1;
-                                CELL_SIZE = INIT_CELL_SIZE;
+                            break;
+                        case SDL_SCANCODE_KP_MINUS:
+                            if (world_scale > 0.1f) {
+                                world_scale -= WORLD_SCALE_INC;
+                                CELL_SIZE = INIT_CELL_SIZE * world_scale;
                             }
                             break;
 
@@ -457,8 +464,8 @@ void edit(char *map_path) {
         }
         SDL_SetRenderDrawColor(g_renderer, 0x00, 0x60, 0x00, 0xFF);
         SDL_RenderClear(g_renderer);
-        for (int y = 0; y < level_height; y += g_background_texture.height * world_scale) {
-            for (int x = 0; x < level_width; x += g_background_texture.width * world_scale) {
+        for (int y = 0; y < level_height; y += g_background_texture.height) {
+            for (int x = 0; x < level_width; x += g_background_texture.width) {
                 SDL_Rect coords = {
                     x,
                     y,
@@ -466,7 +473,7 @@ void edit(char *map_path) {
                     g_background_texture.height
                 };
                 if (check_collision(coords, g_camera)) {
-                    render_texture(g_background_texture, x - g_camera.x, y - g_camera.y, world_scale);
+                    render_texture(g_background_texture, x - g_camera.x, y - g_camera.y, 1);
                 }
             }
         }
@@ -685,7 +692,6 @@ int main (int argc, char *argv[]) {
         usage();
     }
     else edit(*argv);
-    //TODO: resize
     return 0;
 }
 

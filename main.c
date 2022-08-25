@@ -701,7 +701,7 @@ int main(int argc, char *argv[]) {
     if (argc > 1)
         map_path = argv[1];
     else
-        map_path = ASSETS_PREFIX"map.bin";
+        map_path = ASSETS_PREFIX"map1.bin";
     SDL_Log("Loading map...\n");
     if (!load_map(map_path)) {
         SDL_Log("Could not load map\n");
