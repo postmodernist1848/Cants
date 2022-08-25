@@ -48,7 +48,8 @@ int level_height;
 
 int cur_mode = -1;
 
-const int CELL_SIZE = 25;
+#define INIT_CELL_SIZE 25
+int CELL_SIZE = INIT_CELL_SIZE;
 
 SDL_Window *g_window;
 SDL_Renderer *g_renderer;
@@ -65,7 +66,7 @@ SDL_Rect g_camera = {
     0
 };
 
-SDL_Rect g_anthill = {-1, 0, 3 * CELL_SIZE, 3 * CELL_SIZE};
+SDL_Rect g_anthill = {-1, 0, 3 * INIT_CELL_SIZE, 3 * INIT_CELL_SIZE};
 
 Texture load_texture(const char *path) {
 	//The final texture
@@ -303,6 +304,7 @@ void edit(char *map_path) {
     bool mmb_pressed = false;
     bool lmb_pressed = false;
     bool rmb_pressed = false;
+    float world_scale = 1;
 
     //check if the anthill is present on the map
     for (int i = 0; i < g_map.height; i++) {
@@ -344,7 +346,9 @@ void edit(char *map_path) {
                     quit = true;
                     break;
                 case SDL_MOUSEBUTTONDOWN:
-                    if (event.button.button == SDL_BUTTON_MIDDLE) mmb_pressed = true;
+                    if (event.button.button == SDL_BUTTON_MIDDLE) {
+                        mmb_pressed = true;
+                    }                                 
                     else if (event.button.button == SDL_BUTTON_LEFT) {
                         lmb_pressed = true;
                         int x = event.button.x + g_camera.x, y = event.button.y + g_camera.y; 
@@ -378,6 +382,10 @@ void edit(char *map_path) {
                     if (mmb_pressed) {
                         g_camera.x += event.motion.xrel;
                         g_camera.y += event.motion.yrel;
+                        if (g_camera.x < 0 || g_camera.x + g_camera.w > g_map.width * CELL_SIZE) 
+                            g_camera.x -= event.motion.xrel;
+                        if (g_camera.y < 0 || g_camera.y + g_camera.h > g_map.height * CELL_SIZE)
+                            g_camera.y -= event.motion.yrel;
                     }
                     else if (lmb_pressed && cur_mode != MAP_ANTHILL) {
                         int x = event.motion.x + g_camera.x, y = event.motion.y + g_camera.y; 
@@ -412,6 +420,17 @@ void edit(char *map_path) {
                                 if (write_map_to_file(map_path))
                                     printf("Successfully saved the map!\n");
                             break;
+                        case SDL_SCANCODE_F1:
+                            if (world_scale == 1) {
+                                world_scale = (float) g_map.width * CELL_SIZE / screen_width;
+                                CELL_SIZE *= world_scale;
+                            }
+                            else {
+                                world_scale = 1;
+                                CELL_SIZE = INIT_CELL_SIZE;
+                            }
+                            break;
+
                         case SDL_SCANCODE_UP:
                             translate(0, 1);
                             break;
@@ -438,8 +457,8 @@ void edit(char *map_path) {
         }
         SDL_SetRenderDrawColor(g_renderer, 0x00, 0x60, 0x00, 0xFF);
         SDL_RenderClear(g_renderer);
-        for (int y = 0; y < level_height; y += g_background_texture.height) {
-            for (int x = 0; x < level_width; x += g_background_texture.width) {
+        for (int y = 0; y < level_height; y += g_background_texture.height * world_scale) {
+            for (int x = 0; x < level_width; x += g_background_texture.width * world_scale) {
                 SDL_Rect coords = {
                     x,
                     y,
@@ -447,7 +466,7 @@ void edit(char *map_path) {
                     g_background_texture.height
                 };
                 if (check_collision(coords, g_camera)) {
-                    render_texture(g_background_texture, x - g_camera.x, y - g_camera.y, 1);
+                    render_texture(g_background_texture, x - g_camera.x, y - g_camera.y, world_scale);
                 }
             }
         }
@@ -465,7 +484,7 @@ void edit(char *map_path) {
                     SDL_RenderFillRect(g_renderer, &coords);
                 }
                 else if (g_map.matrix[i][j] == MAP_FOOD) {
-                    render_texture(g_leaf_texture, j * CELL_SIZE - g_camera.x, i * CELL_SIZE - g_camera.y, 1);
+                    render_texture(g_leaf_texture, j * CELL_SIZE - g_camera.x, i * CELL_SIZE - g_camera.y, (float) CELL_SIZE / g_leaf_texture.width * world_scale);
                 }
                 else if (g_map.matrix[i][j] == MAP_ENCLOSED) {
                     SDL_Rect coords = {
@@ -493,7 +512,7 @@ void edit(char *map_path) {
         }
 
         if (g_anthill.x != -1) {
-            render_texture(g_anthill_texture, g_anthill.x - g_camera.x, g_anthill.y - g_camera.y, (float) g_anthill.w / g_anthill_texture.width);
+            render_texture(g_anthill_texture, g_anthill.x * world_scale - g_camera.x, g_anthill.y * world_scale - g_camera.y, (float) g_anthill.w / g_anthill_texture.width * world_scale);
         }
 
         //drawing tile
