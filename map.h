@@ -25,4 +25,5 @@ enum MAP { MAP_FREE,
            MAP_FOOD, 
            MAP_ANTHILL, 
            MAP_TOTAL};
+#define CANTS_MAP_SIGNATURE "CANTS_MAP"
 #endif //MAP_H

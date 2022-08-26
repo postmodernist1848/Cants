@@ -197,6 +197,11 @@ bool write_map_to_file(char *path) {
         fprintf(stderr, "Failed to open %s for writing: %s\n", path, strerror(errno));
         return false;
     }
+
+
+    char signature[] = CANTS_MAP_SIGNATURE;
+    SDL_RWwrite(map_file, &signature, sizeof(char), sizeof(signature) - 1 * sizeof(char));
+    
     SDL_RWwrite(map_file, &g_map.width,  sizeof g_map.width, 1);
     SDL_RWwrite(map_file, &g_map.height, sizeof g_map.height, 1);
 
@@ -301,6 +306,7 @@ void edit(char *map_path) {
 
     init();
     bool quit = false;
+    bool hud = true;
     bool mmb_pressed = false;
     bool lmb_pressed = false;
     bool rmb_pressed = false;
@@ -332,7 +338,7 @@ void edit(char *map_path) {
                         goto out;
             }
                 else {
-                    fprintf(stderr, "Error: Something is wrong with the anthill in the map.");
+                    fprintf(stderr, "Error: Something is wrong with the anthill in the map.\n");
                     exit(1);
                 }
             }
@@ -351,7 +357,7 @@ void edit(char *map_path) {
                     if (event.button.button == SDL_BUTTON_MIDDLE) {
                         mmb_pressed = true;
                         int x = event.button.x + g_camera.x, y = event.button.y + g_camera.y; 
-                        printf("%d, %d was pressed\n", x / CELL_SIZE, y / CELL_SIZE);
+                        printf("You clicked on (%d, %d)\n", x / CELL_SIZE, y / CELL_SIZE);
                     }                                 
                     else if (event.button.button == SDL_BUTTON_LEFT) {
                         lmb_pressed = true;
@@ -436,6 +442,9 @@ void edit(char *map_path) {
                                 world_scale -= WORLD_SCALE_INC;
                                 CELL_SIZE = INIT_CELL_SIZE * world_scale;
                             }
+                            break;
+                        case SDL_SCANCODE_F3:
+                            hud = !hud;
                             break;
 
                         case SDL_SCANCODE_UP:
@@ -523,7 +532,9 @@ void edit(char *map_path) {
         }
 
         //drawing tile
-        render_texture(g_mode_texture, 0, 0, 1);
+        if (hud) { 
+            render_texture(g_mode_texture, 0, 0, 1);
+        }
 
         SDL_RenderPresent(g_renderer);
     }

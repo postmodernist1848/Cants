@@ -13,6 +13,20 @@ bool load_map(char *path) {
 
     SDL_RWops *map_file = SDL_RWFromFile(path, "rb");
     if (map_file == NULL) return false;
+
+    //check the signature
+    {
+        char signature[sizeof CANTS_MAP_SIGNATURE / sizeof(char)] = {0};
+        if (SDL_RWread(map_file, &signature, sizeof(char), sizeof CANTS_MAP_SIGNATURE / sizeof(char) - 1) != sizeof CANTS_MAP_SIGNATURE / sizeof(char) - 1) {
+            fprintf(stderr, "Failed reading from file.\n");
+            return false;
+        }
+        if (strcmp(signature, CANTS_MAP_SIGNATURE) != 0) {
+            fprintf(stderr, "Given file is not a cants map.\n");
+            return false;
+        }
+    }
+
     //read width and height
     if (SDL_RWread(map_file, &g_map.width, sizeof g_map.width, 1) == 0 ||
     SDL_RWread(map_file, &g_map.height, sizeof g_map.height, 1) == 0) return false;
