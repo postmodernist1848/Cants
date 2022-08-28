@@ -12,3 +12,5 @@ Cants todo list:
 3. Add river tile and the ability to build bridges (for leaves or create a new collectable material like sticks)
 4. Show entire map after win-state achieved (introducing world scaling also))
 5. Make a menu to choose maps
+6. Figure out why ant fat
+

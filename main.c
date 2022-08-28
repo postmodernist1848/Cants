@@ -661,7 +661,11 @@ void render_game_objects(Player *player, Anthill *anthill) {
                     if (player->food_count >= 10) {
                         g_tutorial++;
                         SDL_DestroyTexture(g_tutorial_prompt.texture_proper);
+#if ANDROID_BUILD
+                        g_tutorial_prompt = load_text_texture("Enter your anthill and tap on it to upgrade");
+#else
                         g_tutorial_prompt = load_text_texture("Enter your anthill and press Space to upgrade");
+#endif
                     }
                     break;
                 case TUTORIAL_UPGRADE:
