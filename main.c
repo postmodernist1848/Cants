@@ -7,6 +7,7 @@
 #include <math.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include <time.h>
 #include "map.h"
 #include "cants_config.h"
 
@@ -135,8 +136,8 @@ Point g_ant_move_table[8] = {
     {-1,-1}  //315
 };
 
-#define MAX_LEVEL 10
-int g_levels_table[MAX_LEVEL + 1] = {10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 100};
+#define MAX_LEVEL 20
+int g_levels_table[MAX_LEVEL + 1] = {10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200, 200};
 
 SDL_Rect g_camera = {
     0,
@@ -693,15 +694,14 @@ void toggle_fullscreen(void) {
 
 //////////////// MAIN ///////////////////////////////////////////////////////////
 
-//TODO: show entire map after win-state achieved (introducing scaling also (maybe increase the scale for mobile))
-//TODO: tutorial
 
 int main(int argc, char *argv[]) {
+    srand(time(NULL));
     char *map_path;
     if (argc > 1)
         map_path = argv[1];
     else
-        map_path = ASSETS_PREFIX"map1.bin";
+        map_path = rand() % 2 ? ASSETS_PREFIX"map1.bin": ASSETS_PREFIX"map2.bin";
     SDL_Log("Loading map...\n");
     if (!load_map(map_path)) {
         SDL_Log("Could not load map\n");

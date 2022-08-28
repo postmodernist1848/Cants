@@ -1,3 +1,5 @@
+Cants todo list:
+
 1. Indexing free spots on the map
 - Index free spots in the map in a list to make finding a random free tile on a map fast and safe:
     make an array - add on the top when adding free tiles - memmove when removing?
@@ -8,3 +10,5 @@
 
 2. Create a special kind of leaf that gives the player 2-10 (random) food
 3. Add river tile and the ability to build bridges (for leaves or create a new collectable material like sticks)
+4. Show entire map after win-state achieved (introducing world scaling also))
+5. Make a menu to choose maps
