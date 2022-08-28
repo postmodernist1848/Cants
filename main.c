@@ -327,10 +327,10 @@ void render_player_anim(Player *player) {
         player->ant->frame = (player->ant->frame + 1) % ANT_FRAMES_NUM;
     }
     SDL_Rect render_rect = {
-    .x = player->ant->x - g_camera.x - g_ant_texture.width * player->ant->scale / ANT_FRAMES_NUM / 2,
-    .y = player->ant->y - g_camera.y - g_ant_texture.height * player->ant->scale / 2,
-    .w = g_antframes[0].w * player->ant->scale,
-    .h = g_antframes[0].h * player->ant->scale,
+        .x = player->ant->x - g_camera.x - g_ant_texture.width * player->ant->scale / ANT_FRAMES_NUM / 2,
+        .y = player->ant->y - g_camera.y - g_ant_texture.height * player->ant->scale / 2,
+        .w = g_antframes[0].w * player->ant->scale,
+        .h = g_antframes[0].h * player->ant->scale,
     };
     SDL_RenderCopyEx(g_renderer, g_ant_texture.texture_proper, &g_antframes[player->ant->frame], &render_rect, player->ant->angle, NULL, SDL_FLIP_NONE);
 
@@ -341,11 +341,12 @@ void render_ant_anim(Ant *ant) {
         ant->anim_time = SDL_GetTicks();
         ant->frame = (ant->frame + 1) % ANT_FRAMES_NUM;
     }
-    SDL_Rect render_rect;
-    render_rect.x = ant->x - g_camera.x - g_ant_texture.width * ant->scale / ANT_FRAMES_NUM / 2;
-    render_rect.y = ant->y - g_camera.y - g_ant_texture.height * ant->scale / 2;
-    render_rect.h = g_antframes[0].h * ant->scale;
-    render_rect.w = g_antframes[0].w * ant->scale;
+    SDL_Rect render_rect = {
+        .x = ant->x - g_camera.x - g_ant_texture.width * ant->scale / ANT_FRAMES_NUM / 2,
+        .y = ant->y - g_camera.y - g_ant_texture.height * ant->scale / 2,
+        .w = g_antframes[0].w * ant->scale,
+        .h = g_antframes[0].h * ant->scale,
+    };
     SDL_RenderCopyEx(g_renderer, g_ant_texture.texture_proper, &g_antframes[ant->frame], &render_rect, ant->angle, NULL, SDL_FLIP_NONE);
 }
 
