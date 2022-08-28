@@ -672,7 +672,7 @@ void render_game_objects(Player *player, Anthill *anthill) {
                     if (anthill->level > 0) {
                         g_tutorial++;
                         SDL_DestroyTexture(g_tutorial_prompt.texture_proper);
-                        g_tutorial_prompt = load_text_texture("Now reach level 10!");
+                        g_tutorial_prompt = load_text_texture("Now reach level 20!");
                         last_food_count = player->food_count;
                     };
                     break;
