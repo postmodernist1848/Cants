@@ -1028,9 +1028,9 @@ int main(int argc, char *argv[]) {
         }
 
         if (reset) {
+            player.vel = 0;
+            player.turn_vel = 0;
             if ((map_path = menu()) != NULL) {
-                player.vel = 0;
-                player.turn_vel = 0;
                 for (size_t i = 0; i < g_npc_sp; i++) {
                     destroy_npc(g_npc_stack[i]);
                 }
