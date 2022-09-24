@@ -509,11 +509,14 @@ void edit(char *map_path) {
                         CELL_SIZE,
                         CELL_SIZE
                     };
+
+#if !THUMBNAIL
                     SDL_SetRenderDrawColor(g_renderer, 0x00, 0x90, 0x90, 0xFF);
                     SDL_RenderFillRect(g_renderer, &coords);
                     SDL_SetRenderDrawColor(g_renderer, 0x00, 0x90, 0x00, 0xFF);
+#endif
                 }
-                else if (g_map.matrix[i][j] == MAP_ENCLOSED) {
+                else if (g_map.matrix[i][j] == MAP_ANTHILL) {
                     SDL_Rect coords = {
                         j * CELL_SIZE - g_camera.x,
                         i * CELL_SIZE - g_camera.y,
