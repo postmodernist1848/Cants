@@ -1,9 +1,10 @@
 # Cants
-Can'ts is an game about ants made in C with SDL2 (original simulation was made in Python, but rewritten and turned into a game)
+Can'ts is a game about ants made in C with SDL2 (original simulation was made in Python, but rewritten and turned into a game)
+
+![image](https://user-images.githubusercontent.com/101038833/230065865-6a3e47de-3dd6-4f7f-bc40-f046cf24012b.png)
 
 Requirements for compilation:
 SDL2, SDL2_image, SDL2_ttf libraries
-
 ## Build instructions:
 ```console
 make package-linux | cross | native-win64
